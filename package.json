@@ -1,0 +1,11 @@
+{
+  "name": "elm-component-platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:example": "node scripts/build-disclosure.ts"
+  },
+  "devDependencies": {
+    "elm": "^0.19.2-0"
+  }
+}
