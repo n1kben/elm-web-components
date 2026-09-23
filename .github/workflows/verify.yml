@@ -16,6 +16,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build:example
+      - run: npm run build:split-example
       - run: npm run test:compiled
       - run: npm run docs:check
       - run: npm pack --dry-run

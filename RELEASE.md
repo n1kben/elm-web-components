@@ -2,7 +2,8 @@
 
 The Elm package and npm builder share a version. Both start at `1.0.0`.
 
-1. Run `npm ci`, `npm test`, `npm run build:example`, `npm run test:compiled`, `npm run docs:check`, and
+1. Run `npm ci`, `npm test`, `npm run build:example`, `npm run build:split-example`,
+   `npm run test:compiled`, `npm run docs:check`, and
    `npm pack --dry-run`. Review the rendered example in a browser.
 2. Make the GitHub repository public. Elm's package catalog must be able to
    fetch the source and the release tag.

@@ -16,6 +16,14 @@ test("builder validates the public manifest", () => {
     { tag: "ui-picker", module: "Picker", attributes: ["value"], output: "dist/picker.js" },
   ] }));
   assert.equal(readConfig(path).components[0].tag, "ui-picker");
+  writeFileSync(path, JSON.stringify({ output: "dist/components.js", components: [
+    { tag: "ui-picker", module: "Picker", attributes: ["value"] },
+  ] }));
+  assert.equal(readConfig(path).bundleOutput, join(directory, "dist/components.js"));
+  writeFileSync(path, JSON.stringify({ output: "dist/components.js", components: [
+    { tag: "ui-picker", module: "Picker", attributes: ["value"], output: "dist/picker.js" },
+  ] }));
+  assert.throws(() => readConfig(path), /cannot be used with top-level output/);
   writeFileSync(path, JSON.stringify({ components: [
     { tag: "Picker", module: "Picker", attributes: ["value"], output: "dist/picker.js" },
   ] }));
@@ -27,6 +35,7 @@ test("builder validates the public manifest", () => {
 test("adapter sends changed attributes, pauses on detach, and emits DOM events", () => {
   const registered = new Map();
   const calls = { input: [], connection: [], events: [], flags: [] };
+  const suffix = generatedName("ui-test");
   let outputSubscriber;
   class HTMLElement {
     constructor() { this.attributes = new Map(); }
@@ -43,9 +52,9 @@ test("adapter sends changed attributes, pauses on detach, and emits DOM events",
       init({ flags }) {
         calls.flags.push(flags);
         return { ports: {
-          inputChanged: { send: (value) => calls.input.push(value) },
-          connectionChanged: { send: (value) => calls.connection.push(value) },
-          outputSent: { subscribe: (callback) => { outputSubscriber = callback; } },
+          [`inputChanged${suffix}`]: { send: (value) => calls.input.push(value) },
+          [`connectionChanged${suffix}`]: { send: (value) => calls.connection.push(value) },
+          [`outputSent${suffix}`]: { subscribe: (callback) => { outputSubscriber = callback; } },
         } };
       },
     } } } },

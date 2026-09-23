@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "n1kben/elm-web-components",
-    "summary": "Describe Elm components for independent custom element builds",
+    "summary": "Describe Elm components for custom element builds",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
     "exposed-modules": [

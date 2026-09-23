@@ -28,6 +28,10 @@ export function readConfig(configPath) {
   if (config.optimize !== undefined && typeof config.optimize !== "boolean") {
     throw new Error("Config optimize must be a boolean.");
   }
+  if (config.output !== undefined && (typeof config.output !== "string" || !config.output.endsWith(".js"))) {
+    throw new Error("Config output must be a JavaScript file path.");
+  }
+  const bundleOutput = config.output === undefined ? null : resolve(project, config.output);
   const components = config.components.map((entry, index) => {
     const label = `components[${index}]`;
     if (!entry || typeof entry !== "object") {
@@ -39,23 +43,26 @@ export function readConfig(configPath) {
     if (typeof entry.module !== "string" || !modulePattern.test(entry.module)) {
       throw new Error(`${label}.module must be an Elm module name.`);
     }
-    if (typeof entry.output !== "string" || !entry.output.endsWith(".js")) {
-      throw new Error(`${label}.output must be a JavaScript file path.`);
+    if (bundleOutput && entry.output !== undefined) {
+      throw new Error(`${label}.output cannot be used with top-level output.`);
+    }
+    if (!bundleOutput && (typeof entry.output !== "string" || !entry.output.endsWith(".js"))) {
+      throw new Error(`${label}.output must be a JavaScript file path when there is no top-level output.`);
     }
     if (!Array.isArray(entry.attributes) || !entry.attributes.every(
       (attribute) => typeof attribute === "string" && attributePattern.test(attribute),
     ) || !unique(entry.attributes)) {
       throw new Error(`${label}.attributes must be unique lowercase attribute names.`);
     }
-    return { ...entry, output: resolve(project, entry.output) };
+    return { ...entry, output: bundleOutput ? null : resolve(project, entry.output) };
   });
   if (!unique(components.map(({ tag }) => tag))) {
     throw new Error("Each component tag must be unique.");
   }
-  if (!unique(components.map(({ output }) => output))) {
+  if (!bundleOutput && !unique(components.map(({ output }) => output))) {
     throw new Error("Each component output path must be unique.");
   }
-  return { project, elmJson, components, optimize: config.optimize ?? false };
+  return { project, elmJson, components, bundleOutput, optimize: config.optimize ?? false };
 }
 
 export function generatedName(tag) {
@@ -65,7 +72,11 @@ export function generatedName(tag) {
 export function generatedElm(moduleName, tag) {
   if (!modulePattern.test(moduleName)) throw new Error("Invalid Elm module name.");
   if (!tagPattern.test(tag)) throw new Error("Invalid custom element tag.");
-  const generatedModule = `ElmWebComponents.Generated.${generatedName(tag)}`;
+  const suffix = generatedName(tag);
+  const generatedModule = `ElmWebComponents.Generated.${suffix}`;
+  const inputPort = `inputChanged${suffix}`;
+  const connectionPort = `connectionChanged${suffix}`;
+  const outputPort = `outputSent${suffix}`;
   return `port module ${generatedModule} exposing (main)
 
 import Component
@@ -75,38 +86,39 @@ import Json.Encode as Encode
 import Platform.Cmd exposing (Cmd)
 import Platform.Sub exposing (Sub)
 
-port inputChanged : (Decode.Value -> msg) -> Sub msg
-port connectionChanged : (Bool -> msg) -> Sub msg
-port outputSent : Encode.Value -> Cmd msg
+port ${inputPort} : (Decode.Value -> msg) -> Sub msg
+port ${connectionPort} : (Bool -> msg) -> Sub msg
+port ${outputPort} : Encode.Value -> Cmd msg
 
 main =
     Component.program
-        { inputChanged = inputChanged
-        , connectionChanged = connectionChanged
-        , outputSent = outputSent
+        { inputChanged = ${inputPort}
+        , connectionChanged = ${connectionPort}
+        , outputSent = ${outputPort}
         }
         ${moduleName}.component
 `;
 }
 
 export function generatedAdapter({ tag, attributes }) {
+  const suffix = generatedName(tag);
   return `
 (() => {
-  const program = Elm.ElmWebComponents.Generated.${generatedName(tag)};
+  const program = Elm.ElmWebComponents.Generated.${suffix};
   const observed = ${JSON.stringify(attributes)};
   class ComponentElement extends HTMLElement {
     static get observedAttributes() { return observed; }
 
     connectedCallback() {
       if (this.app) {
-        this.app.ports.connectionChanged.send(true);
+        this.app.ports.connectionChanged${suffix}.send(true);
         return;
       }
       const root = this.attachShadow({ mode: "open" });
       const mount = document.createElement("div");
       root.append(mount);
       this.app = program.init({ node: mount, flags: this.attributeSnapshot() });
-      this.app.ports.outputSent.subscribe(({ name, detail }) => {
+      this.app.ports.outputSent${suffix}.subscribe(({ name, detail }) => {
         this.dispatchEvent(new CustomEvent(name, {
           detail, bubbles: true, composed: true,
         }));
@@ -114,11 +126,11 @@ export function generatedAdapter({ tag, attributes }) {
     }
 
     disconnectedCallback() {
-      if (this.app) this.app.ports.connectionChanged.send(false);
+      if (this.app) this.app.ports.connectionChanged${suffix}.send(false);
     }
 
     attributeChangedCallback() {
-      if (this.app) this.app.ports.inputChanged.send(this.attributeSnapshot());
+      if (this.app) this.app.ports.inputChanged${suffix}.send(this.attributeSnapshot());
     }
 
     attributeSnapshot() {
@@ -147,16 +159,25 @@ function elmBinary(project) {
 }
 
 export function build(configPath) {
-  const { project, elmJson, components, optimize } = readConfig(configPath);
+  const { project, elmJson, components, bundleOutput, optimize } = readConfig(configPath);
   const sourceDirectories = elmJson["source-directories"].map(
     (source) => resolve(project, source),
   );
-  for (const component of components) {
-    const buildDirectory = resolve(project, ".elm-web-components", component.tag);
-    const generatedSource = resolve(buildDirectory, `src/ElmWebComponents/Generated/${generatedName(component.tag)}.elm`);
+  const groups = bundleOutput
+    ? [{ components, output: bundleOutput, directory: "bundle" }]
+    : components.map((component) => ({
+        components: [component], output: component.output, directory: component.tag,
+      }));
+  for (const group of groups) {
+    const buildDirectory = resolve(project, ".elm-web-components", group.directory);
     const temporaryOutput = resolve(buildDirectory, "component.js");
-    mkdirSync(dirname(generatedSource), { recursive: true });
-    writeFileSync(generatedSource, generatedElm(component.module, component.tag));
+    const generatedSources = group.components.map((component) => {
+      const source = `src/ElmWebComponents/Generated/${generatedName(component.tag)}.elm`;
+      const path = resolve(buildDirectory, source);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, generatedElm(component.module, component.tag));
+      return source;
+    });
     writeFileSync(resolve(buildDirectory, "elm.json"), JSON.stringify({
       ...elmJson,
       "source-directories": ["src", ...sourceDirectories.map((source) => relative(buildDirectory, source))],
@@ -164,15 +185,15 @@ export function build(configPath) {
 
     const result = spawnSync(
       elmBinary(project),
-      ["make", `src/ElmWebComponents/Generated/${generatedName(component.tag)}.elm`, `--output=${temporaryOutput}`, ...(optimize ? ["--optimize"] : [])],
+      ["make", ...generatedSources, `--output=${temporaryOutput}`, ...(optimize ? ["--optimize"] : [])],
       { cwd: buildDirectory, env: process.env, stdio: "inherit" },
     );
     if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error(`Elm build failed for ${component.tag}.`);
+    if (result.status !== 0) throw new Error(`Elm build failed for ${group.directory}.`);
 
-    mkdirSync(dirname(component.output), { recursive: true });
-    writeFileSync(component.output,
-      readFileSync(temporaryOutput, "utf8") + generatedAdapter(component));
-    process.stdout.write(`Built ${relative(project, component.output)} for <${component.tag}>\n`);
+    mkdirSync(dirname(group.output), { recursive: true });
+    writeFileSync(group.output,
+      readFileSync(temporaryOutput, "utf8") + group.components.map(generatedAdapter).join(""));
+    process.stdout.write(`Built ${relative(project, group.output)} for ${group.components.map(({ tag }) => `<${tag}>`).join(", ")}\n`);
   }
 }

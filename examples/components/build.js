@@ -6,7 +6,9 @@ import { build } from "../../tool/build.js";
 const project = dirname(fileURLToPath(import.meta.url));
 const root = resolve(project, "../..");
 process.env.ELM_HOME ??= resolve(root, ".elm-home");
-build(resolve(project, "elm-web-components.json"));
+const split = process.argv.includes("--split");
+build(resolve(project, split ? "elm-web-components.split.json" : "elm-web-components.json"));
+if (split) process.exit(0);
 const result = spawnSync(
   resolve(root, "node_modules/.bin/elm"),
   ["make", "src/Host.elm", "--output=../../dist/host.js"],
