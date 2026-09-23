@@ -1,14 +1,15 @@
 module Component exposing (Component, Event, Transition, define, program)
 
-{-| Build an Elm program that can live inside a custom element.
+{-| Define an Elm component for a custom element.
 
-The host page owns public values through attributes. A component owns private
-interaction state. When attributes change, `receive` may turn the new input into
-an Elm message. An update may emit public outputs, which become `CustomEvent`s.
+The host passes values through attributes. The component keeps its interaction
+state private and renders its own view. When attributes change, `receive` can
+turn the new input into a message. An update can emit a `CustomEvent` for the
+host to handle.
 
-The disclosure example in this repository shows a complete definition. A build
-tool generates the small port application that calls `program`; application
-authors do not need to write ports themselves.
+The build tool generates the port application that calls `program`. Component
+modules only need `define`. See the disclosure example in this repository for
+a complete definition.
 
 # Define a component
 @docs Component, define, Transition, Event
@@ -26,8 +27,9 @@ import Platform.Cmd as Cmd exposing (Cmd)
 import Platform.Sub as Sub exposing (Sub)
 
 
-{-| An Elm component definition. The constructor is private so browser
-integration can change without changing component definitions.
+{-| A component's input decoder, state changes, view, and output events.
+
+Create one with `define`.
 -}
 type Component input state msg output
     = Component
@@ -41,12 +43,13 @@ type Component input state msg output
         }
 
 
-{-| Define one component. `decodeInput` reads an object whose keys are HTML
-attribute names and whose values are strings. An absent attribute has no key.
+{-| Define a component. `decodeInput` reads an object of HTML attributes. Its
+keys are attribute names and its values are strings. Absent attributes have no
+key.
 
-`init` receives the first decoded snapshot. `receive` receives later snapshots;
-return `Nothing` to ignore one, or `Just msg` to handle it through `update`.
-Keep any input needed by `view` in private state.
+`init` receives the first decoded input. On later attribute changes, `receive`
+gets the new input. Return `Nothing` to ignore a change, or `Just msg` to handle
+it through `update`. Store any input that `view` needs in private state.
 
     component =
         Component.define
@@ -74,8 +77,9 @@ define =
     Component
 
 
-{-| The result of handling one message. `state` stays private. `command` runs
-Elm effects. Each `output` is dispatched as a public custom event by the host.
+{-| What happens after handling a message. `state` stays inside the component.
+`command` runs Elm effects. Each value in `outputs` becomes a custom event for
+the host.
 -}
 type alias Transition state msg output =
     { state : state
@@ -84,8 +88,8 @@ type alias Transition state msg output =
     }
 
 
-{-| A public event. Its `name` becomes the DOM event type and its `detail`
-becomes `CustomEvent.detail`. The event bubbles and crosses the shadow boundary.
+{-| An event sent to the host. `name` becomes the DOM event type, and `detail`
+becomes `CustomEvent.detail`. The event bubbles across the shadow boundary.
 -}
 type alias Event =
     { name : String
@@ -104,11 +108,11 @@ type Msg msg
     | ConnectionChanged Bool
 
 
-{-| Wire a component to the generated ports. This is called by the build
-tool's generated application; ordinary component modules use `define`.
+{-| Connect a component to the generated ports. The build tool calls this from
+its generated application. Component modules use `define`.
 
-The Elm program is retained across DOM disconnects so private state survives
-a move or reattachment. Component subscriptions pause while disconnected.
+The browser keeps the Elm program when the element disconnects, so its private
+state survives a move or reattachment. Subscriptions pause while disconnected.
 
 -}
 program :

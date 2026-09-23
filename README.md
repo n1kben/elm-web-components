@@ -1,23 +1,21 @@
 # Elm web components
 
-Write custom elements with Elm. Keep interaction state inside a component, accept
-new attributes from its host, and report user decisions through DOM events. A
-small Node build tool compiles a chosen set of components into one JavaScript
-file. The resulting elements work in ordinary HTML and inside Elm applications.
+Write custom elements in Elm and use them in HTML or an Elm app. The host passes
+values through attributes and listens for DOM events. Each component manages its
+own interaction state and view.
 
-The project has two parts:
+The Elm package, `n1kben/elm-web-components`, defines the component API. The
+Node build tool, `@n1kben/elm-web-components`, compiles the components you
+choose into a browser script and handles the ports and custom element setup.
 
-- `n1kben/elm-web-components` is the Elm package that defines component behavior.
-- `@n1kben/elm-web-components` is the build tool that generates the port app and browser adapter.
+The examples include a [disclosure](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Disclosure.elm), a
+[date picker](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/DatePicker.elm), and an
+[Elm app that hosts them](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Host.elm).
 
-The [disclosure](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Disclosure.elm) and
-[date picker](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/DatePicker.elm) are complete examples.
-The [host app](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Host.elm) shows one of those elements
-used inside an ordinary Elm program.
+## How state moves
 
-## Model
-
-A component has four distinct things:
+The host owns values it needs for application logic. The component keeps
+interaction details in its private state:
 
 | Concept | Ownership | Example |
 | --- | --- | --- |
@@ -26,21 +24,20 @@ A component has four distinct things:
 | Message | Component | `Move 1` after clicking Next |
 | Output | Host DOM event | `date-requested` with a proposed value |
 
-`init` gets the first input. Every subsequent observed attribute change is
-decoded and offered to `receive`. If `receive` returns a message, `update`
-handles it. `view` renders from private state. Elm `Cmd` and `Sub` work as usual
-for effects. The build tool supplies the ports; component authors do not write
-a port module.
+`init` receives the first set of attributes. When an observed attribute
+changes, `receive` gets the new values and can return a message for `update`.
+`view` renders from private state. Use Elm `Cmd` and `Sub` for effects as you
+would in an Elm app. The build tool generates the port module.
 
-The date picker deliberately does not select a day when clicked. It emits
-`date-requested`; the host sets `value` to confirm the selection. Its
-`start-month` is read during initialization and does not move the visible
-month when changed later. This is an API example, not a complete accessible
-date picker control.
+For the date picker, clicking a day emits `date-requested`. The host sets
+`value` to confirm the selection. The component controls which month is
+visible. It reads `start-month` only at initialization, so later changes to
+that attribute do not move the view. This example demonstrates the API; it is
+not a complete accessible date picker.
 
 ## Build components
 
-After publishing, install both parts in an Elm application project:
+Once the packages are published, install them in your Elm application project:
 
 ```sh
 elm install n1kben/elm-web-components
@@ -66,8 +63,8 @@ component =
         }
 ```
 
-See the [full disclosure module](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Disclosure.elm) for
-its input decoder, update, view, and output encoder.
+The [disclosure example](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Disclosure.elm) includes its
+input decoder, update, view, and output encoder.
 
 Create `elm-web-components.json` beside the application's `elm.json`:
 
@@ -79,21 +76,26 @@ Create `elm-web-components.json` beside the application's `elm.json`:
       "tag": "ui-disclosure",
       "module": "Disclosure",
       "attributes": ["label", "disabled"]
+    },
+    {
+      "tag": "ui-date-picker",
+      "module": "DatePicker",
+      "attributes": ["value", "start-month"]
     }
   ]
 }
 ```
 
-List every attribute read by `decodeInput`. Elm decoders cannot be inspected
-by the builder. Attribute names are lowercase; their JSON values are strings.
-An absent attribute has no key. For a boolean attribute, test for its presence.
-The module must be in the application's Elm source directories and expose a
-`component` value created by `Component.define`. Add more entries to the same
-`components` list to register more tags in the output file. **Use one output
-for the components your app needs** so Elm's runtime is included only once in
-that component bundle. In the example, two separate files total about 60 KB
-gzip, while their combined output is about 32 KB gzip (`--optimize`, before
-minification).
+List every attribute that `decodeInput` reads; the builder cannot inspect Elm
+decoders. Attribute names are lowercase, and their values are strings. An
+absent attribute has no key, so test for presence when decoding a boolean
+attribute. Each module must be in the application's Elm source directories
+and expose a `component` value created by `Component.define`.
+
+Put the components your app uses in one output file. This includes the Elm
+runtime once for the component bundle. In the example, two optimized separate
+files total about 60 KB gzip, while the combined file is about 32 KB gzip,
+before minification.
 
 Set top-level `"optimize": true` to pass Elm's `--optimize` flag. The default
 keeps development builds easier to inspect.
@@ -104,17 +106,16 @@ Run from the Elm application directory:
 npx elm-web-components build
 ```
 
-A configuration path can be supplied as the second argument. Paths in the
-configuration are resolved relative to the configuration file. The builder
-writes generated Elm files and compilation caches to `.elm-web-components/`;
-add that directory to the application's `.gitignore`. It writes a classic
-browser script to the configured `output`. Elm compilation
-requires an `elm` binary, found in the project or its parent directories, on
-`PATH`, or at `ELM_BINARY`.
+Pass a configuration path as the second argument if you do not use the default
+`elm-web-components.json`. Paths inside it are relative to the configuration
+file. The builder writes generated Elm files and compilation caches to
+`.elm-web-components/`; add that directory to your `.gitignore`. It writes a
+classic browser script to `output`. The build needs an `elm` binary in the
+project, a parent directory, `PATH`, or `ELM_BINARY`.
 
-For components that must be loaded separately, omit the top-level `output` and
-give each component its own `output` path. Each separate file includes its own
-Elm runtime. See the [split example configuration](https://github.com/n1kben/elm-web-components/blob/main/examples/components/elm-web-components.split.json).
+If components need to load separately, omit the top-level `output` and give
+each component its own `output` path. Each file then includes an Elm runtime.
+See the [split example configuration](https://github.com/n1kben/elm-web-components/blob/main/examples/components/elm-web-components.split.json).
 
 ## Use the result
 
@@ -130,9 +131,9 @@ In HTML:
 </script>
 ```
 
-Outputs are bubbling, composed `CustomEvent`s. Style shadow content through
-CSS parts such as `ui-disclosure::part(trigger)`; the disclosure example also
-shows a default slot for host content.
+Outputs are bubbling, composed `CustomEvent`s. Style content inside the shadow
+root through CSS parts such as `ui-disclosure::part(trigger)`. The disclosure
+also has a default slot for host content.
 
 In an Elm app, use `Html.node` and decode the event detail:
 
@@ -148,27 +149,27 @@ node "ui-date-picker"
     []
 ```
 
-The [host example](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Host.elm) includes the complete
-program. Run `npm install`, `npm run build:example`, then serve this repository
-with a local HTTP server and open `examples/components/index.html`.
+The [host example](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Host.elm) has the complete
+program. To try it locally, run `npm install` and `npm run build:example`, then
+serve this repository over HTTP and open `examples/components/index.html`.
 
-## Current boundaries
+## Current scope
 
-- Browser output uses Shadow DOM and CSS parts. Component views may use slots.
-- The browser keeps an Elm instance when an element disconnects so it can
-  reconnect without losing state. Component subscriptions pause while detached.
-  Elm does not expose a way to destroy an instance; commands already running
-  may still finish.
-- Invalid attributes render an error inside the shadow root. A bad later
-  snapshot keeps private state and resumes it after a valid snapshot. A bad
-  initial snapshot initializes when valid attributes arrive.
-- A bundled output includes one Elm runtime for all its component definitions.
-  Each mounted element still has its own Elm state and render loop. A separate
-  Elm host app compiled into another file brings its own runtime too. The
-  builder does not minify output; `optimize` uses Elm's compiler flag only.
-- V1 supports attribute input and DOM event output. JS properties, form
-  association, focus/overlay helpers, and prebuilt unstyled controls are future
-  work.
+- Components render in Shadow DOM. Their views can use slots, and hosts can
+  style exposed CSS parts.
+- Disconnecting an element keeps its Elm instance and private state for later
+  reattachment. Subscriptions pause while it is detached. Commands already
+  running may still finish; Elm does not expose a way to destroy an instance.
+- Invalid attributes show an error in the shadow root. A later invalid update
+  keeps private state until valid attributes arrive. If the first attributes
+  are invalid, the component initializes when it receives valid ones.
+- A bundle has one Elm runtime for its component definitions. Each mounted
+  element has its own state and render loop. A separately compiled Elm host app
+  has another runtime. The builder does not minify; `optimize` passes Elm's
+  `--optimize` flag.
+- V1 accepts attributes and emits DOM events. JavaScript properties, form
+  association, focus and overlay helpers, and prebuilt unstyled controls are
+  future work.
 
 ## Development and release
 
@@ -182,11 +183,7 @@ npm run docs:check
 npm pack --dry-run
 ```
 
-Elm package publication also requires a public GitHub repository, a matching
-version tag, and `elm publish`. Publish the npm build tool separately. This
-repository is currently private; neither package has been published yet.
-
-The package API follows Elm's [design guidelines](https://package.elm-lang.org/help/design-guidelines)
-by starting from the disclosure and controlled date picker cases, keeping the
-public Elm API small, and documenting the complete use path. Module comments
-follow the [documentation format](https://package.elm-lang.org/help/documentation-format).
+The repository is currently private, and neither package has been published.
+See [RELEASE.md](RELEASE.md) for the release steps. For API changes, refer to
+Elm's [package design guidelines](https://package.elm-lang.org/help/design-guidelines)
+and [documentation format](https://package.elm-lang.org/help/documentation-format).
