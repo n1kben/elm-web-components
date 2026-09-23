@@ -1,4 +1,4 @@
-# Elm component platform
+# Elm web components
 
 An experiment in building individual web components with Elm-style component
 logic. Each component has external input, private state, messages, a pure HTML
