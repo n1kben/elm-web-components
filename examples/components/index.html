@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Elm web components examples</title>
+    <script src="../../dist/disclosure.js" defer></script>
+    <script src="../../dist/date-picker.js" defer></script>
+    <script src="../../dist/host.js" defer></script>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; }
+      ui-disclosure::part(trigger) { padding: .5rem .75rem; cursor: pointer; }
+      ui-disclosure::part(panel) { padding: .75rem; border: 1px solid #aaa; }
+      ui-date-picker::part(calendar) { display: block; width: 18rem; margin-top: 1.5rem; }
+      ui-date-picker::part(month-header) { display: flex; justify-content: space-between; align-items: center; }
+      ui-date-picker::part(weekdays), ui-date-picker::part(days) {
+        display: grid; grid-template-columns: repeat(7, 1fr); gap: .25rem; text-align: center;
+      }
+      ui-date-picker::part(weekdays) { margin: .5rem 0; }
+      ui-date-picker::part(day) { border: 0; background: transparent; padding: .4rem; cursor: pointer; }
+      ui-date-picker::part(selected-day) { background: #165dc1; color: white; border-radius: 50%; }
+    </style>
+  </head>
+  <body>
+    <h1>Elm web components</h1>
+    <h2>Disclosure</h2>
+    <ui-disclosure label="More details">Slotted content stays in the host page.</ui-disclosure>
+    <p id="disclosure-status">Closed</p>
+
+    <h2>Date picker</h2>
+    <p>Visible month is private. The selected date is owned here by the host.</p>
+    <ui-date-picker start-month="2026-09" value="2026-09-23"></ui-date-picker>
+    <p id="date-status">Selected: 2026-09-23</p>
+    <h2>Used inside an Elm app</h2>
+    <div id="elm-host"></div>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        Elm.Host.init({ node: document.querySelector("#elm-host") });
+      });
+      document.querySelector("ui-disclosure").addEventListener("toggle", (event) => {
+        document.querySelector("#disclosure-status").textContent =
+          event.detail.open ? "Open" : "Closed";
+      });
+      document.querySelector("ui-date-picker").addEventListener("date-requested", (event) => {
+        const picker = event.currentTarget;
+        picker.setAttribute("value", event.detail.value);
+        document.querySelector("#date-status").textContent =
+          `Selected: ${event.detail.value}`;
+      });
+    </script>
+  </body>
+</html>

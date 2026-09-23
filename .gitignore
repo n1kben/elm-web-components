@@ -2,4 +2,7 @@ elm-stuff/
 .elm-home/
 node_modules/
 dist/
+.elm-web-components/
 .DS_Store
+
+docs.json

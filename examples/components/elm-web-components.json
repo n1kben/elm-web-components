@@ -1,0 +1,17 @@
+{
+  "optimize": true,
+  "components": [
+    {
+      "tag": "ui-disclosure",
+      "module": "Disclosure",
+      "attributes": ["label", "disabled"],
+      "output": "../../dist/disclosure.js"
+    },
+    {
+      "tag": "ui-date-picker",
+      "module": "DatePicker",
+      "attributes": ["start-month", "value"],
+      "output": "../../dist/date-picker.js"
+    }
+  ]
+}

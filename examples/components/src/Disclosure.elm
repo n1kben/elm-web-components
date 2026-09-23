@@ -33,7 +33,8 @@ type Output
 
 component : Component Input State Msg Output
 component =
-    { decodeInput =
+    Component.define
+        { decodeInput =
         Decode.map2 Input
             (Decode.oneOf
                 [ Decode.field "label" Decode.string
@@ -50,8 +51,8 @@ component =
     , update = update
     , view = view
     , subscriptions = always Sub.none
-    , encodeOutput = encodeOutput
-    }
+        , encodeOutput = encodeOutput
+        }
 
 
 init : Input -> ( State, Cmd Msg )

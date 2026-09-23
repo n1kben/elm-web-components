@@ -1,11 +1,32 @@
 {
-  "name": "elm-web-components",
-  "private": true,
+  "name": "@n1kben/elm-web-components",
+  "version": "1.0.0",
+  "description": "Build Elm component definitions as independent custom elements",
   "type": "module",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/n1kben/elm-web-components.git"
+  },
+  "bin": {
+    "elm-web-components": "bin/elm-web-components.js"
+  },
+  "files": [
+    "bin/",
+    "tool/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build:example": "node scripts/build-disclosure.ts"
+    "build:example": "node examples/components/build.js",
+    "test": "node --test test/build.test.js",
+    "docs:check": "elm make src/Component.elm --docs=docs.json",
+    "test:compiled": "node --test test/compiled.test.js"
   },
   "devDependencies": {
     "elm": "^0.19.2-0"
+  },
+  "peerDependencies": {
+    "elm": "^0.19.1 || ^0.19.2-0"
   }
 }
