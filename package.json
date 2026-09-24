@@ -1,6 +1,6 @@
 {
   "name": "@n1kben/elm-web-components",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Build Elm custom elements and an Elm app in one JavaScript bundle",
   "type": "module",
   "engines": {
@@ -38,5 +38,9 @@
   },
   "peerDependencies": {
     "elm": "^0.19.1 || ^0.19.2-0"
+  },
+  "dependencies": {
+    "@lumis-sh/wasm-elm": "0.26.2",
+    "web-tree-sitter": "0.26.13"
   }
 }

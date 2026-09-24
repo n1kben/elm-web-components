@@ -8,7 +8,7 @@ const root = resolve(project, "../..");
 
 process.env.ELM_HOME ??= resolve(root, ".elm-home");
 
-build({
+await build({
   app: "src/Host.elm",
   output: "../../dist/app.js",
   componentFiles: ["src/Ui/Disclosure.elm", "src/Ui/DatePicker.elm"],

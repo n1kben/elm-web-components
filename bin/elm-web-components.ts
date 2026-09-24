@@ -26,7 +26,7 @@ if (args[0] === "--help" || args[0] === "-h") {
       }
     }
 
-    build(options);
+    await build(options);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n${usage}`);
     process.exitCode = 1;

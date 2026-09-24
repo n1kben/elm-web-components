@@ -40,7 +40,7 @@ The [date picker example](examples/components/src/Ui/DatePicker.elm) uses `start
 
 For now, input fields can be `String`, `Maybe String`, or `Bool`. Field names become kebab-case HTML attributes. A missing `Maybe String` becomes `Nothing`; a `Bool` is true when its attribute is present. A plain `String` is required.
 
-Each `Output` constructor takes a flat record of `String`, `Bool`, `Int`, or `Float` fields. The constructor name becomes a kebab-case `CustomEvent` name, and its record fields become kebab-case keys in `event.detail`. The event bubbles across the shadow boundary. If a type falls outside these rules, the build reports the source path.
+Each `Output` constructor takes a flat record of `String`, `Bool`, `Int`, or `Float` fields. The constructor name becomes a kebab-case `CustomEvent` name, and its record fields become kebab-case keys in `event.detail`. The event bubbles across the shadow boundary. If a type falls outside these rules, the build reports its source location.
 
 ## Build one application and its components
 
@@ -117,6 +117,6 @@ The CLI needs Node 22 and the Elm compiler. It does not need a bundler or Effect
 
 ## Why the CLI is small
 
-The CLI reads the supported `Input` and `Output` declarations, writes Elm modules, and calls `elm make`. It leaves Elm type checking to the compiler. [elm-codegen](https://github.com/mdgriffith/elm-codegen/blob/main/guide/UsingElmCodeGenInTypeScript.md) could write those modules, but it would add a separate generator project while the CLI would still need to read the declarations and build the browser adapter.
+The CLI uses [Tree-sitter's Elm grammar](https://github.com/elm-tooling/tree-sitter-elm) to read `Input` and `Output`, then writes Elm modules and calls `elm make`. The parser handles comments and multiline declarations and reports source positions. The Elm compiler checks names and types. Parsing runs during the build and adds nothing to the browser output. [elm-codegen](https://github.com/mdgriffith/elm-codegen/blob/main/guide/UsingElmCodeGenInTypeScript.md) could write the modules, but it would add a separate generator project while the CLI would still need to read the declarations and build the browser adapter.
 
-The build steps are synchronous and run once per command. Effect would add a runtime dependency without simplifying that path. If the CLI gains a watch mode or several export targets, we can revisit how it coordinates those jobs.
+The CLI has one short build sequence: load the parser, read the files, run `elm make`, and write the bundle. Effect would add a runtime dependency without simplifying that path. If the CLI gains a watch mode or several export targets, we can revisit how it coordinates those jobs.
