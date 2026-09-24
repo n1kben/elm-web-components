@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { build } from "../tool/build.js";
+import { build, type BuildOptions } from "../tool/build.ts";
 
 const usage = "Usage: elm-web-components build [--app src/Main.elm] [--output dist/app.js] [--optimize] src/Ui/Component.elm ...\n";
 
@@ -9,10 +9,10 @@ if (args[0] === "--help" || args[0] === "-h") {
   process.stdout.write(usage);
 } else if (args.shift() === "build") {
   try {
-    const options = { componentFiles: [] };
+    const options: BuildOptions = { componentFiles: [] };
 
     while (args.length) {
-      const arg = args.shift();
+      const arg = args.shift()!;
 
       if (arg === "--app" || arg === "--output") {
         if (!args.length || args[0].startsWith("--")) throw new Error(`${arg} requires a path`);
@@ -28,7 +28,7 @@ if (args[0] === "--help" || args[0] === "-h") {
 
     build(options);
   } catch (error) {
-    process.stderr.write(`${error.message}\n${usage}`);
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n${usage}`);
     process.exitCode = 1;
   }
 } else {

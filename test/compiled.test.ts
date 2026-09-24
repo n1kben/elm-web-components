@@ -10,11 +10,11 @@ import vm from "node:vm";
 const root = new URL("../", import.meta.url);
 
 test("one compiled file contains the app and both components", () => {
-  const elements = new Map();
+  const elements = new Map<string, new () => object>();
 
   const context = vm.createContext({
     HTMLElement: class {},
-    customElements: { define: (tag, klass) => elements.set(tag, klass) },
+    customElements: { define: (tag: string, klass: new () => object) => elements.set(tag, klass) },
   });
 
   const source = readFileSync(new URL("dist/app.js", root), "utf8");
@@ -36,7 +36,7 @@ test("an Elm host cannot compile against a component omitted from the build", ()
   const elmJson = JSON.parse(readFileSync(new URL("elm.json", source), "utf8"));
   elmJson["source-directories"] = ["src"];
   writeFileSync(join(project, "elm.json"), JSON.stringify(elmJson));
-  const cli = fileURLToPath(new URL("bin/elm-web-components.js", root));
+  const cli = fileURLToPath(new URL("bin/elm-web-components.ts", root));
 
   const env = {
     ...process.env,

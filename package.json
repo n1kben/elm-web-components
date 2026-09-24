@@ -1,33 +1,40 @@
 {
   "name": "@n1kben/elm-web-components",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Build Elm custom elements and an Elm app in one JavaScript bundle",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/n1kben/elm-web-components.git"
   },
   "bin": {
-    "elm-web-components": "bin/elm-web-components.js"
+    "elm-web-components": "dist-node/bin/elm-web-components.js"
   },
   "files": [
-    "bin/",
-    "tool/",
+    "dist-node/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build:example": "node examples/components/build.js",
-    "test": "node --test test/build.test.js",
+    "build:example": "node examples/components/build.ts",
+    "test": "node --test test/build.test.ts",
     "docs:check": "elm make src/Component.elm --docs=docs.json",
-    "test:compiled": "node --test test/compiled.test.js",
-    "lint": "oxlint ."
+    "test:compiled": "node --test test/compiled.test.ts",
+    "lint": "oxlint .",
+    "typecheck": "tsc --noEmit",
+    "build:cli": "tsc --project tsconfig.build.json",
+    "prepack": "npm run build:cli"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.85.0",
+    "@types/node": "^22.20.4",
     "elm": "^0.19.2-0",
-    "oxlint": "1.85.0"
+    "oxlint": "1.85.0",
+    "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "elm": "^0.19.1 || ^0.19.2-0"

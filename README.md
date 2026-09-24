@@ -2,7 +2,7 @@
 
 Write custom elements in Elm, then use them in HTML or another Elm application. The host passes values through attributes and listens for events. Each component manages its own interaction state. You can compile the host application and its components into one JavaScript file, with one Elm runtime.
 
-The Elm package `n1kben/elm-web-components` provides `Component.define`. The Node 22 CLI `@n1kben/elm-web-components` generates the code that connects Elm to custom elements, including attribute and event handling and a typed API for Elm hosts.
+The Elm package `n1kben/elm-web-components` provides `Component.define`. The Node 22 CLI `@n1kben/elm-web-components` is written in TypeScript and generates the code that connects Elm to custom elements, including attribute and event handling and a typed API for Elm hosts. The npm package contains compiled JavaScript because Node 22 does not strip types inside `node_modules`.
 
 ## Define a component
 
@@ -105,6 +105,8 @@ npm run build:example
 npm test
 npm run test:compiled
 npm run docs:check
+npm run typecheck
+npm run build:cli
 npm run lint
 npm pack --dry-run
 ```
@@ -112,3 +114,9 @@ npm pack --dry-run
 Serve the repository over HTTP, then open `examples/components/index.html`. [RELEASE.md](RELEASE.md) lists the publication steps.
 
 The CLI needs Node 22 and the Elm compiler. It does not need a bundler or Effect. JavaScript property reflection, form association, overlay and focus helpers, and prebuilt unstyled controls are outside this first version.
+
+## Why the CLI is small
+
+The CLI reads the supported `Input` and `Output` declarations, writes Elm modules, and calls `elm make`. It leaves Elm type checking to the compiler. [elm-codegen](https://github.com/mdgriffith/elm-codegen/blob/main/guide/UsingElmCodeGenInTypeScript.md) could write those modules, but it would add a separate generator project while the CLI would still need to read the declarations and build the browser adapter.
+
+The build steps are synchronous and run once per command. Effect would add a runtime dependency without simplifying that path. If the CLI gains a watch mode or several export targets, we can revisit how it coordinates those jobs.

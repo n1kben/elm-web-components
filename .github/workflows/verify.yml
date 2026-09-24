@@ -18,5 +18,7 @@ jobs:
       - run: npm run build:example
       - run: npm run test:compiled
       - run: npm run docs:check
+      - run: npm run typecheck
+      - run: npm run build:cli
       - run: npm run lint
       - run: npm pack --dry-run

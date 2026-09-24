@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import vm from "node:vm";
-import { generatedAdapter, generatedElm, generatedHost, parseComponent } from "../tool/build.js";
+import { generatedAdapter, generatedElm, generatedHost, parseComponent } from "../tool/build.ts";
 
 const source = `module Ui.DatePicker exposing (Input, Output(..), component)
 import Component exposing (Component)
@@ -34,7 +34,7 @@ test("source types generate attribute codecs and a typed host API", () => {
 
 test("unsupported wire types fail with the source path", () => {
   const path = fixture(source.replace("value : Maybe String", "value : Maybe Int"));
-  assert.throws(() => parseComponent(path), (error) => error.message.includes(`${path}:3`) && /unsupported field/.test(error.message));
+  assert.throws(() => parseComponent(path), (error) => error instanceof Error && error.message.includes(`${path}:3`) && /unsupported field/.test(error.message));
 });
 
 test("standard multiline Elm declarations are accepted", () => {
@@ -51,41 +51,61 @@ test("standard multiline Elm declarations are accepted", () => {
 
 test("adapter observes attributes, survives detachment, and emits DOM events", () => {
   const component = parseComponent(fixture());
-  const registered = new Map();
-  const calls = { input: [], connection: [], events: [], flags: [] };
+
+  type EventRecord = { type: string; bubbles: boolean; composed: boolean; detail: { value: string } };
+
+  type OutputRecord = { name: string; detail: { value: string } };
+
+  type Calls = { input: Record<string, string>[]; connection: boolean[]; events: EventRecord[]; flags: Record<string, string>[] };
+
+  const registered = new Map<string, new () => HTMLElement>();
+  const calls: Calls = { input: [], connection: [], events: [], flags: [] };
   const suffix = component.suffix;
-  let outputSubscriber;
+  let outputSubscriber: (events: OutputRecord[]) => void = () => { throw new Error("Output port was not subscribed"); };
 
   class HTMLElement {
-    constructor() { this.attributes = new Map(); }
-    hasAttribute(name) { return this.attributes.has(name); }
-    getAttribute(name) { return this.attributes.get(name) ?? null; }
+    attributes = new Map<string, string>();
+    hasAttribute(name: string) { return this.attributes.has(name); }
+    getAttribute(name: string) { return this.attributes.get(name) ?? null; }
     attachShadow() { return { append() {} }; }
-    dispatchEvent(event) { calls.events.push(event); }
+    dispatchEvent(event: EventRecord) { calls.events.push(event); }
+    connectedCallback() {}
+    disconnectedCallback() {}
+    attributeChangedCallback() {}
   }
 
   class CustomEvent {
-    constructor(name, options) { this.type = name; Object.assign(this, options); }
+    type: string;
+    bubbles: boolean;
+    composed: boolean;
+    detail: { value: string };
+    constructor(name: string, options: { bubbles: boolean; composed: boolean; detail: { value: string } }) {
+      this.type = name;
+      this.bubbles = options.bubbles;
+      this.composed = options.composed;
+      this.detail = options.detail;
+    }
   }
 
   vm.runInNewContext(generatedAdapter(component), {
     Elm: { ElmWebComponents: { Generated: { [suffix]: {
-      init({ flags }) {
+      init({ flags }: { flags: Record<string, string> }) {
         calls.flags.push(flags);
 
         return { ports: {
-          [`inputChanged${suffix}`]: { send: (value) => calls.input.push(value) },
-          [`connectionChanged${suffix}`]: { send: (value) => calls.connection.push(value) },
-          [`outputSent${suffix}`]: { subscribe: (callback) => { outputSubscriber = callback; } },
+          [`inputChanged${suffix}`]: { send: (value: Record<string, string>) => calls.input.push(value) },
+          [`connectionChanged${suffix}`]: { send: (value: boolean) => calls.connection.push(value) },
+          [`outputSent${suffix}`]: { subscribe: (callback: (events: OutputRecord[]) => void) => { outputSubscriber = callback; } },
         } };
       },
     } } } },
     HTMLElement, CustomEvent,
-    customElements: { define: (tag, klass) => registered.set(tag, klass) },
+    customElements: { define: (tag: string, klass: new () => HTMLElement) => registered.set(tag, klass) },
     document: { createElement: () => ({}) },
   });
 
   const Element = registered.get("ui-date-picker");
+  assert.ok(Element);
   const element = new Element();
   element.attributes.set("start-month", "2026-09");
   element.connectedCallback();

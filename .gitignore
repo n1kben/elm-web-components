@@ -2,6 +2,7 @@ elm-stuff/
 .elm-home/
 node_modules/
 dist/
+dist-node/
 .elm-web-components/
 .DS_Store
 

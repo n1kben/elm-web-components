@@ -1,6 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "../../tool/build.js";
+import { build } from "../../tool/build.ts";
 
 const project = dirname(fileURLToPath(import.meta.url));
 
