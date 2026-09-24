@@ -1,18 +1,18 @@
-module Component exposing (Component, Event, Transition, define, program)
+module Component exposing (Component, Event, define, program)
 
-{-| Define an Elm component for a custom element.
+{-| Build custom elements with Elm.
 
-The host passes values through attributes. The component keeps its interaction
-state private and renders its own view. When attributes change, `receive` can
-turn the new input into a message. An update can emit a `CustomEvent` for the
-host to handle.
+The host passes values through attributes and listens for events. The component
+keeps its interaction state private and renders its own view. When an attribute
+changes, `receive` can send a message to `update`. An update can send an event
+back to the host.
 
-The build tool generates the port application that calls `program`. Component
-modules only need `define`. See the disclosure example in this repository for
-a complete definition.
+The build tool reads the component's `Input` and `Output` types. It generates
+the code that reads attributes, sends events, and connects the component to the
+browser. See the disclosure example for a complete component.
 
 # Define a component
-@docs Component, define, Transition, Event
+@docs Component, define, Event
 
 # Browser integration
 @docs program
@@ -27,68 +27,55 @@ import Platform.Cmd as Cmd exposing (Cmd)
 import Platform.Sub as Sub exposing (Sub)
 
 
-{-| A component's input decoder, state changes, view, and output events.
+{-| The state changes, view, and events for one component.
 
 Create one with `define`.
 -}
 type Component input state msg output
     = Component
-        { decodeInput : Decode.Decoder input
-        , init : input -> ( state, Cmd msg )
+        { init : input -> ( state, Cmd msg )
         , receive : input -> Maybe msg
-        , update : msg -> state -> Transition state msg output
+        , update : msg -> state -> ( state, Cmd msg, List output )
         , view : state -> Html msg
         , subscriptions : state -> Sub msg
-        , encodeOutput : output -> Event
         }
 
 
-{-| Define a component. `decodeInput` reads an object of HTML attributes. Its
-keys are attribute names and its values are strings. Absent attributes have no
-key.
+{-| Define a component. `init` receives the initial input. When an attribute
+changes, `receive` gets the new input. Return `Nothing` to ignore the change,
+or `Just msg` to handle it through `update`. Keep any input that `view` needs in
+the component's state.
 
-`init` receives the first decoded input. On later attribute changes, `receive`
-gets the new input. Return `Nothing` to ignore a change, or `Just msg` to handle
-it through `update`. Store any input that `view` needs in private state.
+The build tool reads an `Input` record alias and an `Output` union from the
+component module. It generates the attribute and event handling, so this
+definition needs neither a decoder nor an encoder.
+
+`update` returns the next state, a command for component messages, and events
+for the host. Return an empty list when there are no events.
 
     component =
         Component.define
-            { decodeInput = inputDecoder
-            , init = init
+            { init = init
             , receive = Just << Received
             , update = update
             , view = view
             , subscriptions = always Sub.none
-            , encodeOutput = encodeOutput
             }
 
 -}
 define :
-    { decodeInput : Decode.Decoder input
-    , init : input -> ( state, Cmd msg )
+    { init : input -> ( state, Cmd msg )
     , receive : input -> Maybe msg
-    , update : msg -> state -> Transition state msg output
+    , update : msg -> state -> ( state, Cmd msg, List output )
     , view : state -> Html msg
     , subscriptions : state -> Sub msg
-    , encodeOutput : output -> Event
     }
     -> Component input state msg output
 define =
     Component
 
 
-{-| What happens after handling a message. `state` stays inside the component.
-`command` runs Elm effects. Each value in `outputs` becomes a custom event for
-the host.
--}
-type alias Transition state msg output =
-    { state : state
-    , command : Cmd msg
-    , outputs : List output
-    }
-
-
-{-| An event sent to the host. `name` becomes the DOM event type, and `detail`
+{-| An event sent to the host. `name` becomes the DOM event type. `detail`
 becomes `CustomEvent.detail`. The event bubbles across the shadow boundary.
 -}
 type alias Event =
@@ -108,31 +95,33 @@ type Msg msg
     | ConnectionChanged Bool
 
 
-{-| Connect a component to the generated ports. The build tool calls this from
-its generated application. Component modules use `define`.
+{-| Connect a component to the generated ports and codecs. The build tool calls
+this from a generated Elm entry point. Component modules use `define`.
 
-The browser keeps the Elm program when the element disconnects, so its private
-state survives a move or reattachment. Subscriptions pause while disconnected.
+An element keeps its Elm state when it leaves the page and returns. Its
+subscriptions pause while it is detached.
 
 -}
 program :
-    { inputChanged : (Decode.Value -> Msg msg) -> Sub (Msg msg)
+    Decode.Decoder input
+    -> (output -> Event)
+    -> { inputChanged : (Decode.Value -> Msg msg) -> Sub (Msg msg)
     , connectionChanged : (Bool -> Msg msg) -> Sub (Msg msg)
     , outputSent : Encode.Value -> Cmd (Msg msg)
     }
     -> Component input state msg output
     -> Program Decode.Value (Model state) (Msg msg)
-program ports (Component definition) =
+program decodeInput encodeOutput ports (Component definition) =
     Browser.element
-        { init = init definition
-        , update = update ports definition
+        { init = init decodeInput definition
+        , update = update decodeInput encodeOutput ports definition
         , view = view definition
         , subscriptions = subscriptions ports definition
         }
 
 
-init definition raw =
-    case Decode.decodeValue definition.decodeInput raw of
+init decodeInput definition raw =
+    case Decode.decodeValue decodeInput raw of
         Ok input ->
             let
                 ( state, command ) =
@@ -144,32 +133,33 @@ init definition raw =
             ( Invalid (Decode.errorToString error), Cmd.none )
 
 
-update ports definition msg model =
+update decodeInput encodeOutput ports definition msg model =
     case ( msg, model ) of
         ( UserMsg userMsg, Ready connected state error ) ->
             let
-                transition =
+                ( nextState, command, outputs ) =
                     definition.update userMsg state
 
-                sendOutput output =
-                    output
-                        |> definition.encodeOutput
-                        |> encodeEvent
-                        |> ports.outputSent
+                sendOutputs =
+                    case outputs of
+                        [] ->
+                            Cmd.none
+
+                        _ ->
+                            outputs
+                                |> Encode.list (encodeOutput >> encodeEvent)
+                                |> ports.outputSent
             in
-            ( Ready connected transition.state error
-            , Cmd.batch
-                (Cmd.map UserMsg transition.command
-                    :: List.map sendOutput transition.outputs
-                )
+            ( Ready connected nextState error
+            , Cmd.batch [ Cmd.map UserMsg command, sendOutputs ]
             )
 
         ( InputChanged raw, Ready connected state _ ) ->
-            case Decode.decodeValue definition.decodeInput raw of
+            case Decode.decodeValue decodeInput raw of
                 Ok input ->
                     case definition.receive input of
                         Just userMsg ->
-                            update ports definition (UserMsg userMsg) (Ready connected state Nothing)
+                            update decodeInput encodeOutput ports definition (UserMsg userMsg) (Ready connected state Nothing)
 
                         Nothing ->
                             ( Ready connected state Nothing, Cmd.none )
@@ -178,7 +168,7 @@ update ports definition msg model =
                     ( Ready connected state (Just (Decode.errorToString error)), Cmd.none )
 
         ( InputChanged raw, Invalid _ ) ->
-            init definition raw
+            init decodeInput definition raw
 
         ( ConnectionChanged connected, Ready _ state error ) ->
             ( Ready connected state error, Cmd.none )

@@ -1,7 +1,7 @@
 {
   "name": "@n1kben/elm-web-components",
   "version": "1.0.0",
-  "description": "Build Elm components as bundled or independent custom elements",
+  "description": "Build Elm custom elements and an Elm app in one JavaScript bundle",
   "type": "module",
   "license": "BSD-3-Clause",
   "repository": {
@@ -19,13 +19,15 @@
   ],
   "scripts": {
     "build:example": "node examples/components/build.js",
-    "build:split-example": "node examples/components/build.js --split",
     "test": "node --test test/build.test.js",
     "docs:check": "elm make src/Component.elm --docs=docs.json",
-    "test:compiled": "node --test test/compiled.test.js"
+    "test:compiled": "node --test test/compiled.test.js",
+    "lint": "oxlint ."
   },
   "devDependencies": {
-    "elm": "^0.19.2-0"
+    "@oxlint/plugins": "1.85.0",
+    "elm": "^0.19.2-0",
+    "oxlint": "1.85.0"
   },
   "peerDependencies": {
     "elm": "^0.19.1 || ^0.19.2-0"

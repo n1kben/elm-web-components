@@ -1,13 +1,11 @@
 module Host exposing (main)
 
-{-| A regular Elm application consuming a generated custom element.
+{-| An Elm application using the generated date picker API.
 -}
 
 import Browser
-import Html exposing (Html, div, node, p, text)
-import Html.Attributes as Attributes
-import Html.Events as Events
-import Json.Decode as Decode
+import Html exposing (Html, div, p, text)
+import WebComponents.Ui.DatePicker as DatePicker
 
 
 type alias Model =
@@ -31,14 +29,11 @@ main =
 view : Model -> Html Msg
 view model =
     div []
-        [ node "ui-date-picker"
-            [ Attributes.attribute "start-month" "2026-09"
-            , Attributes.attribute "value" model.selected
-            , Events.on "date-requested"
-                (Decode.at [ "detail", "value" ] Decode.string
-                    |> Decode.map DateRequested
-                )
-            ]
+        [ DatePicker.view
+            { startMonth = "2026-09"
+            , value = Just model.selected
+            , onDateRequested = Just (DateRequested << .value)
+            }
             []
         , p [] [ text ("Elm selected: " ++ model.selected) ]
         ]

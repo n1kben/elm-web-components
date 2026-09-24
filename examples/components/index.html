@@ -3,8 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>Elm web components examples</title>
-    <script src="../../dist/components.js" defer></script>
-    <script src="../../dist/host.js" defer></script>
+    <script src="../../dist/app.js" defer></script>
     <style>
       body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; }
       ui-disclosure::part(trigger) { padding: .5rem .75rem; cursor: pointer; }
@@ -35,7 +34,7 @@
       document.addEventListener("DOMContentLoaded", () => {
         Elm.Host.init({ node: document.querySelector("#elm-host") });
       });
-      document.querySelector("ui-disclosure").addEventListener("toggle", (event) => {
+      document.querySelector("ui-disclosure").addEventListener("toggled", (event) => {
         document.querySelector("#disclosure-status").textContent =
           event.detail.open ? "Open" : "Closed";
       });

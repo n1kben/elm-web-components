@@ -1,19 +1,16 @@
-module DatePicker exposing (component)
+module Ui.DatePicker exposing (Input, Output(..), component)
 
-{-| A controlled date picker example.
+{-| A date picker whose selected value belongs to the host.
 
-The host owns `value`. The component owns which month is visible. Clicking a
-day requests a value change through an event; the host must set `value` to
-confirm it. Changing `start-month` after initialization does not move the view.
+The component keeps track of the visible month. Clicking a day sends an event
+that requests a new value. The host sets `value` if it accepts that request.
+Changing `start-month` after initialization does not move the visible month.
 -}
 
 import Component exposing (Component)
-import Dict
 import Html exposing (Html, button, div, span, text)
 import Html.Attributes as Attributes
 import Html.Events as Events
-import Json.Decode as Decode
-import Json.Encode as Encode
 import Platform.Cmd as Cmd
 import Platform.Sub as Sub
 
@@ -27,7 +24,7 @@ type alias Date =
 
 
 type alias Input =
-    { startMonth : Month, selected : Maybe Date }
+    { startMonth : String, value : Maybe String }
 
 
 type alias State =
@@ -41,79 +38,47 @@ type Msg
 
 
 type Output
-    = DateRequested String
+    = DateRequested { value : String }
 
 
 component : Component Input State Msg Output
 component =
     Component.define
-        { decodeInput =
-            Decode.map2 Input
-                (Decode.field "start-month" Decode.string
-                    |> Decode.andThen
-                        (\value ->
-                            case parseMonth value of
-                                Just month ->
-                                    Decode.succeed month
-
-                                Nothing ->
-                                    Decode.fail "start-month must be YYYY-MM"
-                        )
-                )
-                (Decode.dict Decode.string
-                    |> Decode.andThen
-                        (\attributes ->
-                            case Dict.get "value" attributes of
-                                Nothing ->
-                                    Decode.succeed Nothing
-
-                                Just value ->
-                                    case parseDate value of
-                                        Just date ->
-                                            Decode.succeed (Just date)
-
-                                        Nothing ->
-                                            Decode.fail "value must be YYYY-MM-DD"
-                        )
-                )
-        , init = \input -> ( { visible = input.startMonth, selected = input.selected }, Cmd.none )
+        { init = \input ->
+            ( { visible = parseMonth input.startMonth |> Maybe.withDefault { year = 2026, month = 1 }
+              , selected = Maybe.andThen parseDate input.value
+              }
+            , Cmd.none
+            )
         , receive = Just << Received
         , update = update
         , view = view
         , subscriptions = always Sub.none
-        , encodeOutput =
-            \output ->
-                case output of
-                    DateRequested value ->
-                        { name = "date-requested"
-                        , detail = Encode.object [ ( "value", Encode.string value ) ]
-                        }
         }
 
 
-update : Msg -> State -> Component.Transition State Msg Output
+update : Msg -> State -> ( State, Cmd Msg, List Output )
 update msg state =
     case msg of
         Received input ->
-            { state = { state | selected = input.selected }
-            , command = Cmd.none
-            , outputs = []
-            }
+            ( { state | selected = Maybe.andThen parseDate input.value }
+            , Cmd.none
+            , []
+            )
 
         Move offset ->
-            { state = { state | visible = moveMonth offset state.visible }
-            , command = Cmd.none
-            , outputs = []
-            }
+            ( { state | visible = moveMonth offset state.visible }
+            , Cmd.none
+            , []
+            )
 
         Select day ->
-            { state = state
-            , command = Cmd.none
-            , outputs =
-                [ DateRequested
-                    (dateString { year = state.visible.year, month = state.visible.month, day = day })
-                ]
-            }
+            ( state
+            , Cmd.none
+            , [ DateRequested
+                    { value = dateString { year = state.visible.year, month = state.visible.month, day = day } }
+              ]
+            )
 
 
 view : State -> Html Msg

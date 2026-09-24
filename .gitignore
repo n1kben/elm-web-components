@@ -6,3 +6,6 @@ dist/
 .DS_Store
 
 docs.json
+
+# Generated typed host modules
+examples/components/src/WebComponents/

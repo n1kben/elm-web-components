@@ -1,26 +1,21 @@
 # Release checklist
 
-The Elm package and npm builder share a version. The first release is `1.0.0`.
-The repository is private, and neither package has been published yet.
+The Elm package and npm CLI share a version. Release `1.0.0` from the same commit for both.
 
-1. Run the checks below and review the example in a browser:
+1. Run the checks, then open the example in a browser and try both components:
 
    ```sh
    npm ci
-   npm test
    npm run build:example
-   npm run build:split-example
+   npm test
    npm run test:compiled
    npm run docs:check
+   npm run lint
    npm pack --dry-run
    ```
 
-2. Make the GitHub repository public so Elm's package catalog can fetch the
-   source and release tag.
-3. Check that `elm.json` and `package.json` have the same version. Commit the
-   release, tag that commit `1.0.0`, and push the commit and tag.
+2. Make the repository public if it is still private. Elm's package catalog needs to read the source and release tag.
+3. Check that `elm.json` and `package.json` both say `1.0.0`. Commit the release, tag that commit `1.0.0`, and push the commit and tag.
 4. Run `elm publish` and complete its checks.
-5. Run `npm publish --access public`. The publishing account must own the npm
-   scope.
-6. In a fresh Elm application, install both packages and build a component
-   using the README steps.
+5. Run `npm publish --access public` from an account that owns the npm scope.
+6. Install both packages in a fresh Elm application and build a component using the README instructions.
