@@ -3,6 +3,7 @@ elm-stuff/
 node_modules/
 dist/
 dist-node/
+packages/elm-ast/dist/
 .elm-web-components/
 .DS_Store
 

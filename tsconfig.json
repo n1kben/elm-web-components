@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["bin/**/*.ts", "tool/**/*.ts", "test/**/*.ts", "examples/components/build.ts"]
+  "include": ["bin/**/*.ts", "tool/**/*.ts", "test/**/*.ts", "examples/components/build.ts", "packages/elm-ast/**/*.ts"]
 }

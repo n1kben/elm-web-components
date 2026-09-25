@@ -54,3 +54,86 @@ test("an Elm host cannot compile against a component omitted from the build", ()
     rmSync(project, { recursive: true, force: true });
   }
 });
+
+test("recursive generic unions compile into a custom element", () => {
+  const project = mkdtempSync(join(tmpdir(), "elm-web-components-tree-"));
+  const source = new URL("examples/components/", root);
+  mkdirSync(join(project, "src/Ui"), { recursive: true });
+  cpSync(fileURLToPath(new URL("test/fixtures/Ui/TreeComponent.elm", root)), join(project, "src/Ui/TreeComponent.elm"));
+  cpSync(fileURLToPath(new URL("test/fixtures/TreeHost.elm", root)), join(project, "src/TreeHost.elm"));
+  cpSync(fileURLToPath(new URL("src/Component.elm", root)), join(project, "src/Component.elm"));
+  const elmJson = JSON.parse(readFileSync(new URL("elm.json", source), "utf8"));
+  elmJson["source-directories"] = ["src"];
+  writeFileSync(join(project, "elm.json"), JSON.stringify(elmJson));
+  const cli = fileURLToPath(new URL("bin/elm-web-components.ts", root));
+
+  const env = {
+    ...process.env,
+    ELM_BINARY: fileURLToPath(new URL("node_modules/.bin/elm", root)),
+    ELM_HOME: fileURLToPath(new URL(".elm-home", root)),
+  };
+
+  try {
+    const result = spawnSync(process.execPath, [cli, "build", "--app", "src/TreeHost.elm", "src/Ui/TreeComponent.elm"], { cwd: project, env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(readFileSync(join(project, "dist/components.js"), "utf8"), /ui-tree-component/);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("recursive imported unions compile through the project import graph", () => {
+  const project = mkdtempSync(join(tmpdir(), "elm-web-components-imported-tree-"));
+  const source = new URL("examples/components/", root);
+  mkdirSync(join(project, "src/Ui"), { recursive: true });
+  mkdirSync(join(project, "src/Data"), { recursive: true });
+  cpSync(fileURLToPath(new URL("test/fixtures/Data/Tree.elm", root)), join(project, "src/Data/Tree.elm"));
+  cpSync(fileURLToPath(new URL("test/fixtures/Ui/ImportedTree.elm", root)), join(project, "src/Ui/ImportedTree.elm"));
+  cpSync(fileURLToPath(new URL("test/fixtures/ImportedTreeHost.elm", root)), join(project, "src/ImportedTreeHost.elm"));
+  cpSync(fileURLToPath(new URL("src/Component.elm", root)), join(project, "src/Component.elm"));
+  const elmJson = JSON.parse(readFileSync(new URL("elm.json", source), "utf8"));
+  elmJson["source-directories"] = ["src"];
+  writeFileSync(join(project, "elm.json"), JSON.stringify(elmJson));
+  const cli = fileURLToPath(new URL("bin/elm-web-components.ts", root));
+
+  const env = {
+    ...process.env,
+    ELM_BINARY: fileURLToPath(new URL("node_modules/.bin/elm", root)),
+    ELM_HOME: fileURLToPath(new URL(".elm-home", root)),
+  };
+
+  try {
+    const result = spawnSync(process.execPath, [cli, "build", "--app", "src/ImportedTreeHost.elm", "src/Ui/ImportedTree.elm"], { cwd: project, env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(readFileSync(join(project, "dist/components.js"), "utf8"), /ui-imported-tree/);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("package aliases and unions compile from Elm package docs", () => {
+  const project = mkdtempSync(join(tmpdir(), "elm-web-components-package-url-"));
+  const source = new URL("examples/components/", root);
+  mkdirSync(join(project, "src/Ui"), { recursive: true });
+  cpSync(fileURLToPath(new URL("test/fixtures/Ui/PackageUrl.elm", root)), join(project, "src/Ui/PackageUrl.elm"));
+  cpSync(fileURLToPath(new URL("src/Component.elm", root)), join(project, "src/Component.elm"));
+  const elmJson = JSON.parse(readFileSync(new URL("elm.json", source), "utf8"));
+  elmJson["source-directories"] = ["src"];
+  elmJson.dependencies.direct["elm/url"] = elmJson.dependencies.indirect["elm/url"];
+  delete elmJson.dependencies.indirect["elm/url"];
+  writeFileSync(join(project, "elm.json"), JSON.stringify(elmJson));
+  const cli = fileURLToPath(new URL("bin/elm-web-components.ts", root));
+
+  const env = {
+    ...process.env,
+    ELM_BINARY: fileURLToPath(new URL("node_modules/.bin/elm", root)),
+    ELM_HOME: fileURLToPath(new URL(".elm-home", root)),
+  };
+
+  try {
+    const result = spawnSync(process.execPath, [cli, "build", "src/Ui/PackageUrl.elm"], { cwd: project, env, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+});

@@ -2,7 +2,7 @@
 
 Write custom elements in Elm, then use them in HTML or another Elm application. The host passes values through attributes and listens for events. Each component manages its own interaction state. You can compile the host application and its components into one JavaScript file, with one Elm runtime.
 
-The Elm package `n1kben/elm-web-components` provides `Component.define`. The Node 22 CLI `@n1kben/elm-web-components` is written in TypeScript and generates the code that connects Elm to custom elements, including attribute and event handling and a typed API for Elm hosts. The npm package contains compiled JavaScript because Node 22 does not strip types inside `node_modules`.
+The Elm package `n1kben/elm-web-components` provides `Component.define`. The Node 22 CLI `@n1kben/elm-web-components` reads files and runs `elm make`. An Elm generator parses the component modules and writes their codecs, custom element adapters, and typed host API. The npm package includes compiled JavaScript for both the CLI and Elm generator because Node 22 does not strip types inside `node_modules`.
 
 ## Define a component
 
@@ -38,9 +38,9 @@ component =
 
 The [date picker example](examples/components/src/Ui/DatePicker.elm) uses `startMonth` only to set its initial visible month. Later changes to `value` update the selected date without moving that month. When someone clicks a day, the component sends `date-requested`. The host decides whether to set `value`.
 
-For now, input fields can be `String`, `Maybe String`, or `Bool`. Field names become kebab-case HTML attributes. A missing `Maybe String` becomes `Nothing`; a `Bool` is true when its attribute is present. A plain `String` is required.
+`Input` must be a record alias, and each `Output` constructor must take a record. Boundary fields can use `String`, `Bool`, `Int`, `Float`, `Maybe`, `List`, `Result`, tuples, records, and public aliases or unions from project modules or installed Elm packages. Recursive and generic types work when the boundary supplies concrete type arguments, such as `Tree String`. Functions, extensible records, and opaque types cannot be encoded. The build reports an error when it encounters one.
 
-Each `Output` constructor takes a flat record of `String`, `Bool`, `Int`, or `Float` fields. The constructor name becomes a kebab-case `CustomEvent` name, and its record fields become kebab-case keys in `event.detail`. The event bubbles across the shadow boundary. If a type falls outside these rules, the build reports its source location.
+Field names become kebab-case HTML attributes. A plain `String` stays a string, and a `Bool` is true when its attribute is present. A missing `Maybe` becomes `Nothing`. Other values are JSON encoded into attributes. Elm hosts use generated codecs; plain HTML callers write that JSON themselves. Unions use an object with `type` and `args`, for example `{ "type": "leaf", "args": ["hello"] }`. Each `Output` constructor becomes a kebab-case `CustomEvent`; its record fields become keys in `event.detail`. The event bubbles across the shadow boundary.
 
 ## Build one application and its components
 
@@ -113,10 +113,10 @@ npm pack --dry-run
 
 Serve the repository over HTTP, then open `examples/components/index.html`. [RELEASE.md](RELEASE.md) lists the publication steps.
 
-The CLI needs Node 22 and the Elm compiler. It does not need a bundler or Effect. JavaScript property reflection, form association, overlay and focus helpers, and prebuilt unstyled controls are outside this first version.
+The CLI needs Node 22 and the Elm compiler. It does not need a bundler. The TypeScript Elm AST package uses Effect for project loading; Effect runs only at build time. JavaScript property reflection, form association, overlay and focus helpers, and prebuilt unstyled controls are outside this first version.
 
-## Why the CLI is small
+## How generation works
 
-The CLI uses [Tree-sitter's Elm grammar](https://github.com/elm-tooling/tree-sitter-elm) to read `Input` and `Output`, then writes Elm modules and calls `elm make`. The parser handles comments and multiline declarations and reports source positions. The Elm compiler checks names and types. Parsing runs during the build and adds nothing to the browser output. [elm-codegen](https://github.com/mdgriffith/elm-codegen/blob/main/guide/UsingElmCodeGenInTypeScript.md) could write the modules, but it would add a separate generator project while the CLI would still need to read the declarations and build the browser adapter.
+The CLI gives the Elm generator project source modules and installed package docs. The generator uses [elm-syntax](https://github.com/stil4m/elm-syntax) for source ASTs and [elm/project-metadata-utils](https://github.com/elm/project-metadata-utils) for package type metadata. It follows imports to resolve aliases and unions, then generates Elm source and the small JavaScript custom element adapter. `elm make` checks the generated code. The parser and generator run at build time; they add nothing to the browser output.
 
-The CLI has one short build sequence: load the parser, read the files, run `elm make`, and write the bundle. Effect would add a runtime dependency without simplifying that path. If the CLI gains a watch mode or several export targets, we can revisit how it coordinates those jobs.
+The published CLI still runs the Elm generator. The new TypeScript Elm AST package can resolve project and package types and print generated codecs. It uses Effect to report project loading errors. The CLI has not switched to that package yet.

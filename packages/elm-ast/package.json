@@ -1,0 +1,28 @@
+{
+  "name": "@n1kben/elm-ast",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Parse Elm modules and generate Elm source from typed ASTs",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "license": "BSD-3-Clause",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./project": { "types": "./dist/project.d.ts", "default": "./dist/project.js" },
+    "./emit": { "types": "./dist/emit.d.ts", "default": "./dist/emit.js" },
+    "./type-graph": { "types": "./dist/type-graph.d.ts", "default": "./dist/type-graph.js" }
+  },
+  "files": ["dist/", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "effect": "^3.22.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^7.0.2"
+  }
+}

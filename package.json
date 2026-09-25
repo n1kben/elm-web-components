@@ -21,26 +21,25 @@
   ],
   "scripts": {
     "build:example": "node examples/components/build.ts",
-    "test": "node --test test/build.test.ts",
+    "test": "npm run build:generator && node --test test/build.test.ts && node --test test/compiled.test.ts && npm run test:ast",
+    "test:ast": "node --test packages/elm-ast/test/*.test.ts",
     "docs:check": "elm make src/Component.elm --docs=docs.json",
-    "test:compiled": "node --test test/compiled.test.ts",
+    "test:compiled": "npm run build:generator && node --test test/compiled.test.ts",
     "lint": "oxlint .",
     "typecheck": "tsc --noEmit",
-    "build:cli": "tsc --project tsconfig.build.json",
+    "build:generator": "cd generator && ../node_modules/.bin/elm make src/Generator.elm --output=../dist-node/generator.js",
+    "build:cli": "tsc --project tsconfig.build.json && npm run build:generator",
     "prepack": "npm run build:cli"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.85.0",
     "@types/node": "^22.20.4",
+    "effect": "^3.22.2",
     "elm": "^0.19.2-0",
     "oxlint": "1.85.0",
     "typescript": "^7.0.2"
   },
   "peerDependencies": {
     "elm": "^0.19.1 || ^0.19.2-0"
-  },
-  "dependencies": {
-    "@lumis-sh/wasm-elm": "0.26.2",
-    "web-tree-sitter": "0.26.13"
   }
 }

@@ -1,0 +1,24 @@
+{
+    "type": "application",
+    "source-directories": [
+        "src"
+    ],
+    "elm-version": "0.19.2",
+    "dependencies": {
+        "direct": {
+            "elm/core": "1.0.5",
+            "elm/json": "1.1.4",
+            "elm/project-metadata-utils": "1.0.2",
+            "stil4m/elm-syntax": "7.3.9"
+        },
+        "indirect": {
+            "elm/parser": "1.1.0",
+            "rtfeldman/elm-hex": "1.0.0",
+            "stil4m/structured-writer": "1.0.3"
+        }
+    },
+    "test-dependencies": {
+        "direct": {},
+        "indirect": {}
+    }
+}

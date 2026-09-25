@@ -32,9 +32,10 @@ test("source types generate attribute codecs and a typed host API", async () => 
   assert.match(generatedHost(component), /Html\.node "ui-date-picker"/);
 });
 
-test("unsupported wire types fail with the source path", async () => {
-  const path = fixture(source.replace("value : Maybe String", "value : Maybe Int"));
-  await assert.rejects(parseComponent(path), (error) => error instanceof Error && error.message.includes(`${path}:3`) && /unsupported field/.test(error.message));
+test("closed Elm container types are accepted", async () => {
+  const component = await parseComponent(fixture(source.replace("value : Maybe String", "value : Maybe Int")));
+  assert.equal(component.inputs[1].type, "Maybe Int");
+  assert.match(generatedElm(component), /decodeOptionalJsonAttribute "value"/);
 });
 
 test("standard multiline Elm declarations are accepted", async () => {
