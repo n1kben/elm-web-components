@@ -7,6 +7,9 @@
     "node": ">=22"
   },
   "license": "BSD-3-Clause",
+  "dependencies": {
+    "effect": "^3.22.2"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/n1kben/elm-web-components.git"
@@ -34,7 +37,6 @@
   "devDependencies": {
     "@oxlint/plugins": "1.85.0",
     "@types/node": "^22.20.4",
-    "effect": "^3.22.2",
     "elm": "^0.19.2-0",
     "oxlint": "1.85.0",
     "typescript": "^7.0.2"

@@ -113,7 +113,7 @@ npm pack --dry-run
 
 Serve the repository over HTTP, then open `examples/components/index.html`. [RELEASE.md](RELEASE.md) lists the publication steps.
 
-The CLI needs Node 22 and the Elm compiler. It does not need a bundler. The TypeScript Elm AST package uses Effect for project loading; Effect runs only at build time. JavaScript property reflection, form association, overlay and focus helpers, and prebuilt unstyled controls are outside this first version.
+The CLI needs Node 22 and the Elm compiler. It does not need a bundler. The CLI and TypeScript Elm AST package use Effect for build steps, typed errors, and cleanup. Effect runs only at build time. JavaScript property reflection, form association, overlay and focus helpers, and prebuilt unstyled controls are outside this first version.
 
 ## How generation works
 

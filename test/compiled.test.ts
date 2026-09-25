@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
@@ -50,6 +51,7 @@ test("an Elm host cannot compile against a component omitted from the build", ()
     const omitted = spawnSync(process.execPath, [cli, "build", "--app", "src/Host.elm", "--output", "dist/omitted.js", "src/Ui/Disclosure.elm"], { cwd: project, env, encoding: "utf8" });
     assert.notEqual(omitted.status, 0);
     assert.match(omitted.stdout + omitted.stderr, /WebComponents\.Ui\.DatePicker/);
+    assert.equal(existsSync(join(project, ".elm-web-components/build.lock")), false);
   } finally {
     rmSync(project, { recursive: true, force: true });
   }
@@ -259,6 +261,49 @@ test("package aliases and unions compile from Elm package docs", () => {
     const result = spawnSync(process.execPath, [cli, "build", "src/Ui/PackageUrl.elm"], { cwd: project, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
   } finally {
+    rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test("SIGTERM keeps the lock until the Elm compiler closes", async () => {
+  const project = mkdtempSync(join(tmpdir(), "elm-web-components-interrupt-"));
+  const source = new URL("examples/components/", root);
+  mkdirSync(join(project, "src/Ui"), { recursive: true });
+  cpSync(fileURLToPath(new URL("src/Ui/Disclosure.elm", source)), join(project, "src/Ui/Disclosure.elm"));
+  cpSync(fileURLToPath(new URL("src/Component.elm", root)), join(project, "src/Component.elm"));
+  const elmJson = JSON.parse(readFileSync(new URL("elm.json", source), "utf8"));
+  elmJson["source-directories"] = ["src"];
+  writeFileSync(join(project, "elm.json"), JSON.stringify(elmJson));
+
+  const fakeCompiler = join(project, "elm-fake.js");
+  const ready = join(project, "compiler-ready");
+  writeFileSync(fakeCompiler, `#!/usr/bin/env node
+const fs = require("node:fs");
+fs.writeFileSync(process.env.FAKE_READY, "ready");
+process.on("SIGTERM", () => setTimeout(() => process.exit(0), 500));
+setInterval(() => {}, 1000);
+`);
+  chmodSync(fakeCompiler, 0o755);
+  const cli = fileURLToPath(new URL("bin/elm-web-components.ts", root));
+  const env = { ...process.env, ELM_BINARY: fakeCompiler, ELM_HOME: fileURLToPath(new URL(".elm-home", root)), FAKE_READY: ready };
+  const child = spawn(process.execPath, [cli, "build", "src/Ui/Disclosure.elm"], { cwd: project, env, stdio: "pipe" });
+  const finished = new Promise<number | null>((resolve) => child.once("close", (code) => resolve(code)));
+  let output = "";
+  child.stdout.on("data", (chunk) => { output += String(chunk); });
+  child.stderr.on("data", (chunk) => { output += String(chunk); });
+
+  try {
+    for (let attempt = 0; attempt < 500 && !existsSync(ready); attempt++) await delay(10);
+    assert.ok(existsSync(ready), output);
+    const lock = join(project, ".elm-web-components/build.lock");
+    assert.ok(existsSync(lock));
+    child.kill("SIGTERM");
+    await delay(100);
+    assert.ok(existsSync(lock), "the lock must remain while the compiler handles SIGTERM");
+    assert.equal(await finished, 143, output);
+    assert.equal(existsSync(lock), false);
+  } finally {
+    child.kill("SIGKILL");
     rmSync(project, { recursive: true, force: true });
   }
 });

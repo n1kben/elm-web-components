@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import vm from "node:vm";
-import { generatedAdapter, generatedElm, generatedHost, parseComponent } from "../tool/build.ts";
+import { Effect, Either } from "effect";
+import { BuildError, build, generatedAdapter, generatedElm, generatedHost, parseComponent } from "../tool/build.ts";
 
 const source = `module Ui.DatePicker exposing (Input, Output(..), component)
 import Component exposing (Component)
@@ -23,7 +24,7 @@ function fixture(contents = source) {
 }
 
 test("source types generate attribute codecs and a typed host API", async () => {
-  const component = await parseComponent(fixture());
+  const component = await Effect.runPromise(parseComponent(fixture()));
   assert.equal(component.tag, "ui-date-picker");
   assert.deepEqual(component.inputs.map((field) => field.attribute), ["start-month", "value", "disabled"]);
   assert.match(generatedElm(component), /Decode\.maybe \(Decode\.field "value" Decode\.string\)/);
@@ -33,16 +34,16 @@ test("source types generate attribute codecs and a typed host API", async () => 
 });
 
 test("closed Elm container types are accepted", async () => {
-  const component = await parseComponent(fixture(source.replace("value : Maybe String", "value : Maybe Int")));
+  const component = await Effect.runPromise(parseComponent(fixture(source.replace("value : Maybe String", "value : Maybe Int"))));
   assert.equal(component.inputs[1].type, "Maybe Int");
   assert.match(generatedElm(component), /decodeOptionalJsonAttribute "value"/);
 });
 
 test("Elm's default qualified core types are accepted", async () => {
-  const component = await parseComponent(fixture(source
+  const component = await Effect.runPromise(parseComponent(fixture(source
     .replace("startMonth : String", "startMonth : String.String")
     .replace("disabled : Bool", "disabled : Basics.Bool")
-    .replace("value : Maybe String", "value : Maybe.Maybe Basics.Int")));
+    .replace("value : Maybe String", "value : Maybe.Maybe Basics.Int"))));
 
   assert.deepEqual(component.inputs.map((field) => field.type), ["String.String", "Maybe.Maybe Basics.Int", "Basics.Bool"]);
 });
@@ -53,7 +54,7 @@ test("standard multiline Elm declarations are accepted", async () => {
     .replace("type Output = DateRequested { value : String }", "type Output\n    = DateRequested\n        { value : String }")
     .replace("value : Maybe String", "value : Maybe\n      String"));
 
-  const component = await parseComponent(path);
+  const component = await Effect.runPromise(parseComponent(path));
   assert.equal(component.tag, "ui-date-picker");
   assert.equal(component.inputs[1].type, "Maybe String");
   assert.equal(component.outputs[0].name, "DateRequested");
@@ -65,7 +66,7 @@ test("comments cannot impersonate declarations or break type arguments", async (
     .replace("value : Maybe String", "value : Maybe {- optional -} String")
     .replace("type Output =", "-- type Output = Wrong { value : String }\ntype Output ="));
 
-  const component = await parseComponent(path);
+  const component = await Effect.runPromise(parseComponent(path));
   assert.deepEqual(component.inputs.map((field) => field.name), ["startMonth", "value", "disabled"]);
   assert.equal(component.inputs[1].type, "Maybe String");
   assert.equal(component.outputs[0].name, "DateRequested");
@@ -73,17 +74,17 @@ test("comments cannot impersonate declarations or break type arguments", async (
 
 test("exposing all still provides the generated entry with the required types", async () => {
   const path = fixture(source.replace("exposing (Input, Output(..), component)", "exposing (..)"));
-  const component = await parseComponent(path);
+  const component = await Effect.runPromise(parseComponent(path));
   assert.equal(component.module, "Ui.DatePicker");
 });
 
 test("syntax errors include a source position", async () => {
   const path = fixture(source.replace("value : Maybe String", "value :"));
-  await assert.rejects(parseComponent(path), (error) => error instanceof Error && new RegExp(`${path}:3:[0-9]+: Elm syntax error`).test(error.message));
+  await assert.rejects(Effect.runPromise(parseComponent(path)), (error) => error instanceof Error && new RegExp(`${path}:3:[0-9]+: Elm syntax error`).test(error.message));
 });
 
 test("adapter observes attributes, survives detachment, and emits DOM events", async () => {
-  const component = await parseComponent(fixture());
+  const component = await Effect.runPromise(parseComponent(fixture()));
 
   type EventRecord = { type: string; bubbles: boolean; composed: boolean; detail: { value: string } };
 
@@ -158,4 +159,15 @@ test("adapter observes attributes, survives detachment, and emits DOM events", a
   assert.equal(calls.events[0].bubbles, true);
   assert.equal(calls.events[0].composed, true);
   assert.deepEqual(calls.events.map((event) => event.detail.value), ["2026-09-24", "2026-09-25"]);
+});
+
+test("invalid build input returns a typed Effect failure", async () => {
+  const missing = await Effect.runPromise(Effect.either(build({ componentFiles: [] })));
+  assert.ok(Either.isLeft(missing));
+  assert.ok(missing.left instanceof BuildError);
+  assert.equal(missing.left.stage, "build");
+
+  const unreadable = await Effect.runPromise(Effect.either(parseComponent("/no-such-component.elm")));
+  assert.ok(Either.isLeft(unreadable));
+  assert.equal(unreadable.left._tag, "ParseComponentError");
 });

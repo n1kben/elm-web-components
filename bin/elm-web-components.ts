@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { Effect, Either } from "effect";
 import { build, type BuildOptions } from "../tool/build.ts";
 
 const usage = "Usage: elm-web-components build [--app src/Main.elm] [--output dist/app.js] [--optimize] src/Ui/Component.elm ...\n";
@@ -26,7 +27,26 @@ if (args[0] === "--help" || args[0] === "-h") {
       }
     }
 
-    await build(options);
+    const controller = new AbortController();
+    let interruptedBy: NodeJS.Signals | undefined;
+    const interrupt = (signal: NodeJS.Signals): void => { interruptedBy = signal; controller.abort(); };
+
+    const onInterrupt = (): void => interrupt("SIGINT");
+    const onTerminate = (): void => interrupt("SIGTERM");
+    process.on("SIGINT", onInterrupt);
+    process.on("SIGTERM", onTerminate);
+
+    try {
+      const result = await Effect.runPromise(Effect.either(build(options)), { signal: controller.signal });
+
+      if (Either.isLeft(result)) throw result.left;
+    } catch (error) {
+      if (!interruptedBy) throw error;
+      process.exitCode = interruptedBy === "SIGINT" ? 130 : 143;
+    } finally {
+      process.off("SIGINT", onInterrupt);
+      process.off("SIGTERM", onTerminate);
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n${usage}`);
     process.exitCode = 1;
