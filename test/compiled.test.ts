@@ -11,6 +11,10 @@ import vm from "node:vm";
 const root = new URL("../", import.meta.url);
 
 test("one compiled file contains the app and both components", () => {
+  const exampleBuild = fileURLToPath(new URL("../examples/components/build.ts", import.meta.url));
+  const result = spawnSync(process.execPath, [exampleBuild], { cwd: fileURLToPath(root), encoding: "utf8" });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+
   const elements = new Map<string, new () => object>();
 
   const context = vm.createContext({
