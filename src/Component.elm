@@ -2,14 +2,14 @@ module Component exposing (Component, Event, define, program)
 
 {-| Build custom elements with Elm.
 
-The host passes values through attributes and listens for events. The component
-keeps its interaction state private and renders its own view. When an attribute
-changes, `receive` can send a message to `update`. An update can send an event
-back to the host.
+The host sets attributes and listens for events. Each component keeps its
+interaction state and renders its own view. When an attribute changes,
+`receive` can send a message to `update`, which can send an event back to
+the host.
 
 The build tool reads the component's `Input` and `Output` types. It generates
-the code that reads attributes, sends events, and connects the component to the
-browser. See the disclosure example for a complete component.
+attribute handling, events, and the browser connection. See the disclosure
+example for a complete component.
 
 # Define a component
 @docs Component, define, Event
@@ -27,9 +27,7 @@ import Platform.Cmd as Cmd exposing (Cmd)
 import Platform.Sub as Sub exposing (Sub)
 
 
-{-| The state changes, view, and events for one component.
-
-Create one with `define`.
+{-| A component's private state, view, and events. Create one with `define`.
 -}
 type Component input state msg output
     = Component
@@ -46,12 +44,12 @@ changes, `receive` gets the new input. Return `Nothing` to ignore the change,
 or `Just msg` to handle it through `update`. Keep any input that `view` needs in
 the component's state.
 
-The build tool reads an `Input` record alias and an `Output` union from the
-component module. It generates the attribute and event handling, so this
-definition needs neither a decoder nor an encoder.
+The build tool reads the component module's `Input` record alias and `Output`
+union. It generates the attribute and event handling; you do not write a
+decoder or encoder.
 
-`update` returns the next state, a command for component messages, and events
-for the host. Return an empty list when there are no events.
+`update` returns the next state, a command for component messages, and a list
+of events for the host. Return `[]` when there are no events.
 
     component =
         Component.define
@@ -95,10 +93,10 @@ type Msg msg
     | ConnectionChanged Bool
 
 
-{-| Connect a component to the generated ports and codecs. The build tool calls
-this from a generated Elm entry point. Component modules use `define`.
+{-| Connect a component to generated ports and codecs. The build tool calls
+this from a generated Elm entry point; component modules use `define`.
 
-An element keeps its Elm state when it leaves the page and returns. Its
+An element keeps its state when it leaves the page and returns. Its
 subscriptions pause while it is detached.
 
 -}

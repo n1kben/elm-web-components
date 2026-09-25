@@ -1,6 +1,6 @@
 module Host exposing (main)
 
-{-| An Elm application using the generated date picker API.
+{-| An Elm app that owns the selected date through the generated date picker API.
 -}
 
 import Browser

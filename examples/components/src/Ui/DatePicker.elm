@@ -2,9 +2,9 @@ module Ui.DatePicker exposing (Input, Output(..), component)
 
 {-| A date picker whose selected value belongs to the host.
 
-The component keeps track of the visible month. Clicking a day sends an event
-that requests a new value. The host sets `value` if it accepts that request.
-Changing `start-month` after initialization does not move the visible month.
+The component owns the visible month. Clicking a day requests a new date;
+the host sets `value` if it accepts the request. Changes to `start-month` after
+initialization do not move the visible month.
 -}
 
 import Component exposing (Component)
