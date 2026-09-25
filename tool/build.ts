@@ -143,6 +143,9 @@ export async function build({ app, output = "dist/components.js", componentFiles
     const path = resolve(sources[0], "WebComponents", ...component.module.split(".")) + ".elm";
 
     if (existsSync(path) && !readFileSync(path, "utf8").startsWith(marker)) fail(path, "generated host module would overwrite a handwritten file");
+    const codecPath = resolve(sources[0], "WebComponents", "Codecs", component.suffix + ".elm");
+
+    if (existsSync(codecPath) && !readFileSync(codecPath, "utf8").startsWith(marker)) fail(codecPath, "generated codec module would overwrite a handwritten file");
   }
 
   return withBuildLock(project, () => {

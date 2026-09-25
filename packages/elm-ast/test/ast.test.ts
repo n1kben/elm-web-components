@@ -15,6 +15,12 @@ import { generateCodecs } from "../../../tool/type-codec.ts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 
+function expectFailure<A, E extends { message: string }>(operation: Effect.Effect<A, E>, pattern: RegExp): void {
+  const result = Effect.runSync(Effect.either(operation));
+  assert.ok(Either.isLeft(result));
+  assert.match(result.left.message, pattern);
+}
+
 test("parses imported recursive unions and comments", () => {
   const source = readFileSync(join(root, "test/fixtures/Ui/ImportedTree.elm"), "utf8");
   const file = parseModule(source);
@@ -70,6 +76,39 @@ test("parses effect headers and multi-character exposed operators", () => {
     { name: "//", kind: "operator", constructors: false },
   ]);
   assert.deepEqual(effect.imports[0]?.exposing, [{ name: "::", kind: "operator", constructors: false }]);
+});
+
+test("copying types removes exposures for omitted values", () => {
+  const parsed = parseModule("module Example exposing (T, value)\ntype alias T = Int\nvalue = 1\n");
+  const source = printModule(typeModuleFromParsed(parsed));
+  assert.match(source, /module Example exposing \(T\)/);
+  assert.doesNotMatch(source, /exposing \([^)]*value/);
+});
+
+test("constructor patterns are grouped in generated function and lambda arguments", () => {
+  const module = createModule("Generated.Pattern");
+  const pattern = { kind: "constructor" as const, reference: local("Box"), arguments: [{ kind: "variable" as const, name: "value" }] };
+  module.declarations.push({ kind: "union", name: "Box", parameters: ["a"], constructors: [{ name: "Box", arguments: [{ kind: "variable", name: "a" }] }] });
+  module.declarations.push({ kind: "function", name: "unwrap", arguments: [pattern], body: local("value") });
+  module.declarations.push({ kind: "function", name: "unwrapLambda", arguments: [], body: { kind: "lambda", arguments: [pattern], body: local("value") } });
+  const source = printModule(module);
+  assert.match(source, /unwrap \(Box value\) =/);
+  assert.match(source, /\\\(Box value\) ->/);
+
+  const projectRoot = mkdtempSync(join(tmpdir(), "elm-ast-pattern-"));
+  mkdirSync(join(projectRoot, "src/Generated"), { recursive: true });
+  const elmJson = JSON.parse(readFileSync(join(root, "examples/components/elm.json"), "utf8"));
+  elmJson["source-directories"] = ["src"];
+  writeFileSync(join(projectRoot, "elm.json"), JSON.stringify(elmJson));
+  writeFileSync(join(projectRoot, "src/Generated/Pattern.elm"), source);
+
+  try {
+    const elm = fileURLToPath(new URL("../../../node_modules/.bin/elm", import.meta.url));
+    const result = spawnSync(elm, ["make", "src/Generated/Pattern.elm", "--output=/dev/null"], { cwd: projectRoot, env: { ...process.env, ELM_HOME: join(root, ".elm-home") }, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stdout + result.stderr + source);
+  } finally {
+    rmSync(projectRoot, { recursive: true, force: true });
+  }
 });
 
 test("round-trips 5000 generated type ASTs", () => {
@@ -160,16 +199,53 @@ test("project loading is deferred and reports typed file errors", () => {
     assert.equal(missing.left._tag, "ProjectError");
     assert.equal(missing.left.path, manifestPath);
 
+    writeFileSync(manifestPath, JSON.stringify({ type: "application" }));
+    const malformed = Effect.runSync(Effect.either(load));
+    assert.ok(Either.isLeft(malformed));
+    assert.equal(malformed.left.path, manifestPath);
+    assert.match(malformed.left.message, /invalid Elm application/);
+
     mkdirSync(join(projectRoot, "src"));
+    mkdirSync(join(projectRoot, "src/WebComponents"));
     writeFileSync(manifestPath, JSON.stringify({ type: "application", "elm-version": "0.19.1", "source-directories": ["src"], dependencies: { direct: {}, indirect: {} } }));
+    writeFileSync(join(projectRoot, "src/WebComponents/Handwritten.elm"), "module WebComponents.Handwritten exposing (Flag)\ntype alias Flag = Bool\n");
     const loaded = Effect.runSync(load);
     assert.equal(loaded.root, projectRoot);
+    assert.equal(Effect.runSync(loaded.module("WebComponents.Handwritten")).name, "WebComponents.Handwritten");
+    expectFailure(loaded.module("Missing"), /unknown project module/);
 
     const sourcePath = join(projectRoot, "src/Broken.elm");
     writeFileSync(sourcePath, "this is not an Elm module");
     const invalidSource = Effect.runSync(Effect.either(load));
     assert.ok(Either.isLeft(invalidSource));
     assert.equal(invalidSource.left.path, sourcePath);
+  } finally {
+    rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test("rejects malformed package docs through the Effect error channel", () => {
+  const projectRoot = mkdtempSync(join(tmpdir(), "elm-ast-docs-"));
+  const docsPath = join(projectRoot, ".elm-home/0.19.1/packages/example/pkg/1.0.0/docs.json");
+  mkdirSync(join(projectRoot, "src"), { recursive: true });
+  mkdirSync(join(projectRoot, ".elm-home/0.19.1/packages/example/pkg/1.0.0"), { recursive: true });
+  writeFileSync(join(projectRoot, "elm.json"), JSON.stringify({
+    type: "application", "elm-version": "0.19.1", "source-directories": ["src"],
+    dependencies: { direct: { "example/pkg": "1.0.0" }, indirect: {} },
+  }));
+
+  try {
+    for (const docs of ["{}", '[{"name":"Example"}]']) {
+      writeFileSync(docsPath, docs);
+      const result = Effect.runSync(Effect.either(openProject(projectRoot, join(projectRoot, ".elm-home"))));
+      assert.ok(Either.isLeft(result));
+      assert.equal(result.left.path, docsPath);
+      assert.match(result.left.message, /invalid package docs/);
+    }
+
+    writeFileSync(docsPath, '[{"name":"Example","aliases":[{"name":"Broken","args":[],"type":"???"}],"unions":[]}]');
+    const project = Effect.runSync(openProject(projectRoot, join(projectRoot, ".elm-home")));
+    expectFailure(project.resolveType("Example", { kind: "named", module: ["Example"], name: "Broken", arguments: [] }), /invalid package type/);
   } finally {
     rmSync(projectRoot, { recursive: true, force: true });
   }
@@ -187,9 +263,9 @@ test("collects recursive project types from parsed component input", () => {
 
   try {
     const project = Effect.runSync(openProject(projectRoot, join(root, ".elm-home")));
-    const input = project.module("Ui.ImportedTree").declarations.find((item) => item.kind === "alias" && item.name === "Input");
+    const input = Effect.runSync(project.module("Ui.ImportedTree")).declarations.find((item) => item.kind === "alias" && item.name === "Input");
     assert.ok(input?.kind === "alias");
-    const graph = collectTypeGraph(project, "Ui.ImportedTree", [input.type]);
+    const graph = Effect.runSync(collectTypeGraph(project, "Ui.ImportedTree", [input.type]));
     assert.deepEqual([...graph.keys()], ["Data.Tree.Tree"]);
     assert.deepEqual(graph.get("Data.Tree.Tree")?.dependencies, ["Data.Tree.Tree"]);
     assert.equal(graph.get("Data.Tree.Tree")?.definition.declaration.kind, "union");
@@ -207,13 +283,13 @@ test("rejects hidden, ambiguous, and incorrectly applied boundary types", () => 
 
   const project = new Project(".", modules, new Map());
   const named = (name: string, args: Type[] = []): Type => ({ kind: "named", module: [], name, arguments: args });
-  assert.deepEqual([...collectTypeGraph(project, "Ui.Host", [named("Tree", [named("String")])]).keys()], ["A.Tree"]);
-  assert.throws(() => collectTypeGraph(project, "Ui.Host", [named("Tree")]), /needs 1 type argument/);
-  assert.throws(() => collectTypeGraph(project, "Ui.Host", [named("Shared")]), /ambiguous type Shared/);
-  assert.throws(() => collectTypeGraph(project, "Ui.Host", [named("Hidden")]), /expose Ui.Host.Hidden/);
-  assert.throws(() => collectTypeGraph(project, "Ui.Host", [{ kind: "function", argument: named("Int"), result: named("Int") }]), /functions cannot cross/);
-  assert.throws(() => collectTypeGraph(project, "Ui.Host", [{ kind: "record", extension: "row", fields: [{ name: "value", type: named("Int") }] }]), /extensible records cannot cross/);
-  assert.throws(() => collectTypeGraph(project, "Ui.Host", [{ kind: "variable", name: "a" }]), /unbound type variable/);
+  assert.deepEqual([...Effect.runSync(collectTypeGraph(project, "Ui.Host", [named("Tree", [named("String")])])).keys()], ["A.Tree"]);
+  expectFailure(collectTypeGraph(project, "Ui.Host", [named("Tree")]), /needs 1 type argument/);
+  expectFailure(collectTypeGraph(project, "Ui.Host", [named("Shared")]), /ambiguous type Shared/);
+  expectFailure(collectTypeGraph(project, "Ui.Host", [named("Hidden")]), /expose Ui.Host.Hidden/);
+  expectFailure(collectTypeGraph(project, "Ui.Host", [{ kind: "function", argument: named("Int"), result: named("Int") }]), /functions cannot cross/);
+  expectFailure(collectTypeGraph(project, "Ui.Host", [{ kind: "record", extension: "row", fields: [{ name: "value", type: named("Int") }] }]), /extensible records cannot cross/);
+  expectFailure(collectTypeGraph(project, "Ui.Host", [{ kind: "variable", name: "a" }]), /unbound type variable/);
 });
 
 test("resolves project and package types through imports", () => {
@@ -229,16 +305,16 @@ test("resolves project and package types through imports", () => {
 
   try {
     const project = Effect.runSync(openProject(projectRoot, join(root, ".elm-home")));
-    const tree = project.resolveType("Ui.ImportedTree", { kind: "named", module: [], name: "Tree", arguments: [] });
+    const tree = Effect.runSync(project.resolveType("Ui.ImportedTree", { kind: "named", module: [], name: "Tree", arguments: [] }));
     assert.equal(tree.module, "Data.Tree");
     assert.equal(tree.declaration.kind, "union");
     assert.equal(tree.constructorsVisible, true);
-    const url = project.resolveType("Ui.PackageUrl", { kind: "named", module: ["Url"], name: "Url", arguments: [] });
+    const url = Effect.runSync(project.resolveType("Ui.PackageUrl", { kind: "named", module: ["Url"], name: "Url", arguments: [] }));
     assert.equal(url.module, "Url");
     assert.equal(url.declaration.kind, "alias");
-    const urlInput = project.module("Ui.PackageUrl").declarations.find((item) => item.kind === "alias" && item.name === "Input");
+    const urlInput = Effect.runSync(project.module("Ui.PackageUrl")).declarations.find((item) => item.kind === "alias" && item.name === "Input");
     assert.ok(urlInput?.kind === "alias");
-    assert.deepEqual([...collectTypeGraph(project, "Ui.PackageUrl", [urlInput.type]).keys()], ["Url.Protocol", "Url.Url"]);
+    assert.deepEqual([...Effect.runSync(collectTypeGraph(project, "Ui.PackageUrl", [urlInput.type])).keys()], ["Url.Protocol", "Url.Url"]);
   } finally {
     rmSync(projectRoot, { recursive: true, force: true });
   }
@@ -362,9 +438,9 @@ test("round-trips a parsed recursive imported union through compiled Elm", async
 
   try {
     const project = Effect.runSync(openProject(projectRoot, join(root, ".elm-home")));
-    const input = project.module("Ui.ImportedTree").declarations.find((item) => item.kind === "alias" && item.name === "Input");
+    const input = Effect.runSync(project.module("Ui.ImportedTree")).declarations.find((item) => item.kind === "alias" && item.name === "Input");
     assert.ok(input?.kind === "alias");
-    const graph = collectTypeGraph(project, "Ui.ImportedTree", [input.type]);
+    const graph = Effect.runSync(collectTypeGraph(project, "Ui.ImportedTree", [input.type]));
     const output = printModule(generateCodecs("Generated.Codec", graph));
     assert.match(output, /encodeData_Tree_Tree/);
     assert.match(output, /decodeData_Tree_Tree/);
@@ -438,9 +514,9 @@ test("generates Elm codecs for package aliases and unions", () => {
 
   try {
     const project = Effect.runSync(openProject(projectRoot, join(root, ".elm-home")));
-    const input = project.module("Ui.PackageUrl").declarations.find((item) => item.kind === "alias" && item.name === "Input");
+    const input = Effect.runSync(project.module("Ui.PackageUrl")).declarations.find((item) => item.kind === "alias" && item.name === "Input");
     assert.ok(input?.kind === "alias");
-    const graph = collectTypeGraph(project, "Ui.PackageUrl", [input.type]);
+    const graph = Effect.runSync(collectTypeGraph(project, "Ui.PackageUrl", [input.type]));
     const output = printModule(generateCodecs("Generated.Codec", graph));
     assert.match(output, /decodeUrl_Url/);
     assert.match(output, /decodeUrl_Protocol/);
@@ -462,14 +538,14 @@ test("round-trips a nine-argument constructor and nested record types through co
   const elmJson = JSON.parse(readFileSync(join(root, "examples/components/elm.json"), "utf8"));
   elmJson["source-directories"] = ["src"];
   writeFileSync(join(projectRoot, "elm.json"), JSON.stringify(elmJson));
-  writeFileSync(join(projectRoot, "src/Domain/Wide.elm"), "module Domain.Wide exposing (Wide(..), WideRecord)\ntype Wide = Empty | Nine Int Int Int Int Int Int Int Int Int\ntype alias WideRecord = { a : Int, b : Int, c : Int, d : Int, e : Int, f : Int, g : Int, h : Int, i : Int, values : List Int, unit : (), pair : ( Int, String ), outcome : Result String Int, nested : Maybe (Result String (Maybe Int)) }\n");
+  writeFileSync(join(projectRoot, "src/Domain/Wide.elm"), "module Domain.Wide exposing (Wide(..), WideRecord)\ntype Wide = Empty | Nine Int Int Int Int Int Int Int Int Int\ntype alias WideRecord = { a : Int, b : Int, c : Int, d : Int, e : Int, f : Int, g : Int, h : Int, i : Int, values : List Int, unit : (), unitMaybe : Maybe (), pair : ( Int, String ), outcome : Result String Int, nested : Maybe (Result String (Maybe Int)) }\n");
   writeFileSync(join(projectRoot, "src/Ui/Test.elm"), "module Ui.Test exposing (Input)\nimport Domain.Wide exposing (Wide, WideRecord)\ntype alias Input = { wide : Wide, record : WideRecord }\n");
 
   try {
     const project = Effect.runSync(openProject(projectRoot, join(root, ".elm-home")));
-    const input = project.module("Ui.Test").declarations.find((item) => item.kind === "alias" && item.name === "Input");
+    const input = Effect.runSync(project.module("Ui.Test")).declarations.find((item) => item.kind === "alias" && item.name === "Input");
     assert.ok(input?.kind === "alias");
-    const graph = collectTypeGraph(project, "Ui.Test", [input.type]);
+    const graph = Effect.runSync(collectTypeGraph(project, "Ui.Test", [input.type]));
     const wideRecord = graph.get("Domain.Wide.WideRecord")?.definition.declaration;
     assert.ok(wideRecord?.kind === "alias" && wideRecord.type.kind === "record");
     const values = wideRecord.type.fields.find((field) => field.name === "values")?.type;
@@ -550,9 +626,10 @@ test("round-trips a nine-argument constructor and nested record types through co
 
     const numbers = Array.from({ length: 9 }, (_, index) => index + 1);
     await roundTrip(app.ports.requestWide, { type: "nine", args: numbers });
-    const record = { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8, i: 9, values: [1, 2, 3], unit: null, pair: [7, "x"], outcome: { type: "ok", args: [5] }, nested: { type: "ok", args: [42] } } satisfies WirePayload;
+    const record = { a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8, i: 9, values: [1, 2, 3], unit: null, unitMaybe: { type: "just", args: [null] }, pair: [7, "x"], outcome: { type: "ok", args: [5] }, nested: { type: "just", args: [{ type: "ok", args: [{ type: "just", args: [42] }] }] } } satisfies WirePayload;
     await roundTrip(app.ports.requestRecord, record);
-    await roundTrip(app.ports.requestRecord, { ...record, outcome: { type: "err", args: ["failure"] }, nested: null });
+    await roundTrip(app.ports.requestRecord, { ...record, outcome: { type: "err", args: ["failure"] }, nested: { type: "nothing", args: [] }, unitMaybe: { type: "nothing", args: [] } });
+    await roundTrip(app.ports.requestRecord, { ...record, nested: { type: "just", args: [{ type: "ok", args: [{ type: "nothing", args: [] }] }] } });
   } finally {
     rmSync(projectRoot, { recursive: true, force: true });
   }

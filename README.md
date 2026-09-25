@@ -40,7 +40,7 @@ The [date picker example](examples/components/src/Ui/DatePicker.elm) uses `start
 
 `Input` must be a record alias, and each `Output` constructor must take a record. Boundary fields can use `String`, `Bool`, `Int`, `Float`, `Maybe`, `List`, `Result`, tuples, records, and public aliases or unions from project modules or installed Elm packages. Recursive and generic types work when the boundary supplies concrete type arguments, such as `Tree String`. Functions, extensible records, and opaque types cannot be encoded. The build reports an error when it encounters one.
 
-Field names become kebab-case HTML attributes. A plain `String` stays a string, and a `Bool` is true when its attribute is present. A missing `Maybe` becomes `Nothing`. Other values are JSON encoded into attributes. Elm hosts use generated codecs; plain HTML callers write that JSON themselves. Unions use an object with `type` and `args`, for example `{ "type": "leaf", "args": ["hello"] }`. Each `Output` constructor becomes a kebab-case `CustomEvent`; its record fields become keys in `event.detail`. The event bubbles across the shadow boundary.
+Field names become kebab-case HTML attributes. A plain `String` stays a string, and a `Bool` is true when its attribute is present. A missing `Maybe` attribute becomes `Nothing`. Other values are JSON encoded into attributes. Elm hosts use generated codecs; plain HTML callers write that JSON themselves. `Maybe` values inside JSON use `{ "type": "nothing", "args": [] }` or `{ "type": "just", "args": [value] }`, preserving nested `Maybe` and `Maybe ()`. Unions use the same `type` and `args` shape, for example `{ "type": "leaf", "args": ["hello"] }`. Each `Output` constructor becomes a kebab-case `CustomEvent`; its record fields become keys in `event.detail`. The event bubbles across the shadow boundary.
 
 ## Build one application and its components
 
@@ -62,7 +62,7 @@ npx elm-web-components build \
 
 Leave out `--app` if you only need the components. Add `--optimize` for an optimized Elm build. The CLI passes every listed component and the optional app to one `elm make` call, so the output contains one Elm runtime. List component files in the command or an npm script; you do not need a manifest or handwritten decoders.
 
-The build writes compiler files to `.elm-web-components/`. It writes Elm host modules under the first source directory listed in `elm.json`, at `WebComponents/<component module>.elm`. Add both generated paths to `.gitignore`. Your editor can see the host modules after the first build. On each build, the CLI removes its old host modules and generates only those for the components you listed. It will not overwrite a handwritten module at the same path.
+The build writes compiler files to `.elm-web-components/`. It writes Elm host and codec modules under the first source directory listed in `elm.json`, at `WebComponents/<component module>.elm` and `WebComponents/Codecs/`. Add both generated paths to `.gitignore`. Your editor can see the host modules after the first build. On each build, the CLI removes its old generated modules and generates only those for the components you listed. It will not overwrite handwritten modules at either path.
 
 ## Use the generated Elm API
 

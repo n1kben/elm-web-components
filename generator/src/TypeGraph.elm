@@ -75,7 +75,12 @@ fromAnnotation resolve variables node =
             traverse nested args
                 |> Result.andThen
                     (\parameters ->
-                        if List.isEmpty qualifier && List.member name [ "String", "Bool", "Int", "Float" ] && List.isEmpty parameters then
+                        if List.isEmpty parameters
+                            && ((List.isEmpty qualifier && List.member name [ "String", "Bool", "Int", "Float" ])
+                                    || (qualified == "String" && name == "String")
+                                    || (qualified == "Basics" && List.member name [ "Bool", "Int", "Float" ])
+                               )
+                        then
                             Ok (Primitive name)
 
                         else if (List.isEmpty qualifier || qualified == "Maybe") && name == "Maybe" then

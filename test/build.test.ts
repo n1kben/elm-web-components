@@ -38,6 +38,15 @@ test("closed Elm container types are accepted", async () => {
   assert.match(generatedElm(component), /decodeOptionalJsonAttribute "value"/);
 });
 
+test("Elm's default qualified core types are accepted", async () => {
+  const component = await parseComponent(fixture(source
+    .replace("startMonth : String", "startMonth : String.String")
+    .replace("disabled : Bool", "disabled : Basics.Bool")
+    .replace("value : Maybe String", "value : Maybe.Maybe Basics.Int")));
+
+  assert.deepEqual(component.inputs.map((field) => field.type), ["String.String", "Maybe.Maybe Basics.Int", "Basics.Bool"]);
+});
+
 test("standard multiline Elm declarations are accepted", async () => {
   const path = fixture(source
     .replace("module Ui.DatePicker exposing (Input, Output(..), component)", "module Ui.DatePicker exposing\n    ( Input\n    , Output(..)\n    , component\n    )")

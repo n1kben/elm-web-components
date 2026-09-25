@@ -10,10 +10,10 @@ import { openProject } from "@n1kben/elm-ast/project";
 import { Effect } from "effect";
 
 const project = Effect.runSync(openProject("."));
-const component = project.module("Ui.DatePicker");
+const component = Effect.runSync(project.module("Ui.DatePicker"));
 const input = component.declarations.find((item) => item.kind === "alias" && item.name === "Input");
 ```
 
-`openProject` is an Effect that reads `elm.json`, indexes project source directories, and loads docs for installed dependencies from `ELM_HOME`. File and parse failures are returned as `ProjectError` values. `resolveType` follows project and package imports, and `collectTypeGraph` finds declarations reachable from boundary types. Generated modules use `createModule`, `ref`, and `printModule` from `@n1kben/elm-ast/emit`; the printer adds imports referenced by expressions and types.
+`openProject` is an Effect that reads `elm.json`, indexes project source directories, and loads docs for installed dependencies from `ELM_HOME`. File and parse failures are returned as `ProjectError` values. `module` and `resolveType` return `ProjectLookupError` for missing or ambiguous declarations. `collectTypeGraph` returns an Effect that finds declarations reachable from boundary types and reports unsupported types as `TypeGraphError`. Generated modules use `createModule`, `ref`, and `printModule` from `@n1kben/elm-ast/emit`; the printer adds imports referenced by expressions and types.
 
 The component CLI still uses its Elm generator. A TypeScript codec generator under `tool/type-codec.ts` compiles recursive unions and package records. Runtime tests round-trip recursive trees and records containing lists, tuples, unit, `Maybe`, and `Result`. It does not generate the component host and adapter yet.

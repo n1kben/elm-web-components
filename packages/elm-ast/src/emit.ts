@@ -50,7 +50,9 @@ export function createModule(name: string, exposing: string[] | "all" = "all"): 
 
 /** Copy parsed type declarations into the builder AST for inspection or rewriting. */
 export function typeModuleFromParsed(parsed: ElmModule): GeneratedModule {
-  const module = createModule(parsed.name, parsed.exposing === "all" ? "all" : parsed.exposing.map(printExposure));
+  const copiedTypes = new Set(parsed.declarations.filter((item) => item.kind === "alias" || item.kind === "union").map((item) => item.name));
+  const exposing = parsed.exposing === "all" ? "all" : parsed.exposing.filter((item) => item.kind === "type" && copiedTypes.has(item.name)).map(printExposure);
+  const module = createModule(parsed.name, exposing);
   module.imports = parsed.imports;
 
   for (const declaration of parsed.declarations) {
@@ -134,6 +136,12 @@ function printPattern(pattern: Pattern): string {
   }
 }
 
+function printArgumentPattern(pattern: Pattern): string {
+  const rendered = printPattern(pattern);
+
+  return pattern.kind === "constructor" && pattern.arguments.length > 0 ? `(${rendered})` : rendered;
+}
+
 function printExpression(expression: Expression, level: number, nested = false): string {
   const indent = "    ".repeat(level);
   let result: string;
@@ -152,7 +160,7 @@ function printExpression(expression: Expression, level: number, nested = false):
       break;
     }
 
-    case "lambda": result = `\\${expression.arguments.map(printPattern).join(" ")} -> ${printExpression(expression.body, level)}`; break;
+    case "lambda": result = `\\${expression.arguments.map(printArgumentPattern).join(" ")} -> ${printExpression(expression.body, level)}`; break;
     case "infix": result = `${printExpression(expression.left, level, true)} ${expression.operator} ${printExpression(expression.right, level, true)}`; break;
     case "case": {
       result = `case ${printExpression(expression.value, level)} of\n`;
@@ -242,7 +250,7 @@ function printDeclaration(declaration: GeneratedDeclaration): string {
   switch (declaration.kind) {
     case "function": {
       const signature = declaration.annotation ? `${declaration.name} : ${printTypeAnnotation(declaration.annotation)}\n` : "";
-      const head = [declaration.name, ...declaration.arguments.map(printPattern)].join(" ");
+      const head = [declaration.name, ...declaration.arguments.map(printArgumentPattern)].join(" ");
 
       return `${signature}${head} =\n    ${printExpression(declaration.body, 1)}`;
     }

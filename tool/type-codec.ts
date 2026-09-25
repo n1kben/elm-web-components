@@ -34,10 +34,10 @@ function codecName(key: string): string {
   return key.replaceAll(".", "_");
 }
 
-function tagged(tag: string, argument: Expression): Expression {
+function tagged(tag: string, ...arguments_: Expression[]): Expression {
   return call(ref("Json.Encode", "object"), list(
     tuple(string("type"), call(ref("Json.Encode", "string"), string(tag))),
-    tuple(string("args"), call(ref("Json.Encode", "list"), local("identity"), list(argument))),
+    tuple(string("args"), call(ref("Json.Encode", "list"), local("identity"), list(...arguments_))),
   ));
 }
 
@@ -105,7 +105,11 @@ function codecFor(type: Type, context: string, direction: "encode" | "decode", f
       ]);
 
       const qualifier = type.module.join(".");
-      const primitive = qualifier === "" || qualifier === "Basics" || qualifier === "String" ? builtin.get(type.name) : undefined;
+
+      const isPrimitive = qualifier === "" || (qualifier === "String" && type.name === "String")
+        || (qualifier === "Basics" && ["Bool", "Int", "Float"].includes(type.name));
+
+      const primitive = isPrimitive ? builtin.get(type.name) : undefined;
 
       if (primitive && type.arguments.length === 0) return ref(direction === "encode" ? "Json.Encode" : "Json.Decode", primitive);
 
@@ -116,7 +120,27 @@ function codecFor(type: Type, context: string, direction: "encode" | "decode", f
       if (type.name === "Maybe" && (qualifier === "" || qualifier === "Maybe") && type.arguments.length === 1) {
         const itemCodec = codecFor(type.arguments[0]!, context, direction, fresh);
 
-        if (direction === "decode") return call(ref("Json.Decode", "nullable"), itemCodec);
+        if (direction === "decode") {
+          const tagName = fresh("tag");
+
+          const item = call(ref("Json.Decode", "at"), list(string("args")),
+            call(ref("Json.Decode", "index"), { kind: "integer", value: 0 }, itemCodec));
+
+          return call(ref("Json.Decode", "andThen"), {
+            kind: "lambda",
+            arguments: [variable(tagName)],
+            body: {
+              kind: "case",
+              value: local(tagName),
+              branches: [
+                { pattern: { kind: "string", value: "nothing" }, body: call(ref("Json.Decode", "succeed"), local("Nothing")) },
+                { pattern: { kind: "string", value: "just" }, body: call(ref("Json.Decode", "map"), local("Just"), item) },
+                { pattern: { kind: "wildcard" }, body: call(ref("Json.Decode", "fail"), string("unknown Maybe constructor")) },
+              ],
+            },
+          }, call(ref("Json.Decode", "field"), string("type"), ref("Json.Decode", "string")));
+        }
+
         const maybeName = fresh("maybe");
         const itemName = fresh("item");
 
@@ -127,10 +151,10 @@ function codecFor(type: Type, context: string, direction: "encode" | "decode", f
             kind: "case",
             value: local(maybeName),
             branches: [
-              { pattern: { kind: "constructor", reference: local("Nothing"), arguments: [] }, body: ref("Json.Encode", "null") },
+              { pattern: { kind: "constructor", reference: local("Nothing"), arguments: [] }, body: tagged("nothing") },
               {
                 pattern: { kind: "constructor", reference: local("Just"), arguments: [variable(itemName)] },
-                body: call(itemCodec, local(itemName)),
+                body: tagged("just", call(itemCodec, local(itemName))),
               },
             ],
           },
