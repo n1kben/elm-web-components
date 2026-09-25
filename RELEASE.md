@@ -1,23 +1,13 @@
-# Release checklist
+# Releases
 
-The Elm package and npm CLI share a version. Release `1.0.2` from the same commit for both.
+## Published 1.0.2
 
-1. Run the checks, then open the example in a browser and try both components:
+The Elm package `n1kben/elm-web-components` was published from Git tag `1.0.2`. The npm CLI `@n1kben/elm-web-components` was published later from commit `f45ea94`, which includes build tool fixes. `elm.json` and the exposed `Component` module did not change between those commits.
 
-   ```sh
-   npm ci
-   npm run build:example
-   npm test
-   npm run test:compiled
-   npm run docs:check
-   npm run typecheck
-   npm run build:cli
-   npm run lint
-   npm pack --dry-run
-   ```
+## Next release
 
-2. Make the repository public if it is still private. Elm's package catalog needs to read the source and release tag.
-3. Check that `elm.json` and `package.json` both say `1.0.2`. Commit the release, tag that commit `1.0.2`, and push the commit and tag.
-4. Run `elm publish` and complete its checks.
-5. Run `npm publish --access public` from an account that owns the npm scope.
-6. Install both packages in a fresh Elm application and build a component using the README instructions.
+1. Run `npm ci`, `npm run build:example`, `npm test`, `npm run docs:check`, `npm run typecheck`, `npm run build:cli`, `npm run lint`, and `npm pack --dry-run`.
+2. Try both example components in a browser.
+3. If the exposed Elm package changed, update `elm.json`, tag the release, and run `elm publish`.
+4. If the CLI changed, update `package.json` and the lockfile, then run `npm publish --access public` from the `n1kben` npm account.
+5. Install the released package in a fresh project and build a component using the README instructions.
