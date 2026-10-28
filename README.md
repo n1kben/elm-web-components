@@ -19,7 +19,11 @@ Each component is a namespaced Elm module with an `Input` record, an `Output`
 custom type, and a `component` value:
 
 ```elm
-module Ui.Disclosure exposing (Input, Output(..), component)
+module Ui.Disclosure exposing
+    ( Input
+    , Output(..)
+    , component
+    )
 
 import Component exposing (Component)
 import Platform.Sub as Sub
@@ -46,38 +50,38 @@ component =
         }
 ```
 
+This shows the component boundary. The complete example includes the ordinary
+Elm state, messages, `init`, `update`, and `view` functions.
+
 `init` receives the initial `Input`. `receive` gets the complete `Input` after an
 attribute changes; return `Nothing` to ignore the change. Values in the
 `List Output` returned by `update` become events.
 
 The example above creates this browser API:
 
-| Elm | Browser |
-| --- | --- |
-| `Ui.Disclosure` | `<ui-disclosure>` |
-| `label : String` | `label="Details"` |
-| `disabled : Bool` | presence or absence of `disabled` |
-| `Toggled { open : Bool }` | a `toggled` event with `{ open }` in `event.detail` |
+- `Ui.Disclosure` becomes `<ui-disclosure>`.
+- `label : String` becomes `label="Details"`.
+- `disabled : Bool` uses the presence or absence of `disabled`.
+- `Toggled { open : Bool }` becomes a `toggled` event with `{ open }` in
+  `event.detail`.
 
 Names become kebab-case at the browser boundary, so `startMonth` becomes
 `start-month`.
 
-See the complete [disclosure component](examples/components/src/Ui/Disclosure.elm).
+See the complete
+[disclosure component](https://github.com/n1kben/elm-web-components/blob/main/examples/components/src/Ui/Disclosure.elm).
 
 ## Build
 
 Run the CLI from the directory containing your application's `elm.json`:
 
 ```sh
-npx elm-web-components build \
-  --app src/Host.elm \
-  --output dist/app.js \
-  src/Ui/Disclosure.elm src/Ui/DatePicker.elm
+npx elm-web-components build src/Ui/Disclosure.elm
 ```
 
-Pass each component file to `build`. `--app` is optional; omit it when the output
-only needs to define custom elements. The default output is
-`dist/components.js`. Add `--optimize` for an optimized build.
+Pass each component file to `build`. Add `--app src/Host.elm` to include an Elm
+host application. The default output is `dist/components.js`; change it with
+`--output`. Add `--optimize` for an optimized build.
 
 The app and components are built into one browser-ready JavaScript file with one
 Elm runtime. No bundler is required.
@@ -126,7 +130,8 @@ Each output has an optional callback. Use `Nothing` to ignore it.
 </ui-disclosure>
 
 <script>
-  const disclosure = document.querySelector("ui-disclosure");
+  const disclosure =
+    document.querySelector("ui-disclosure");
 
   disclosure.addEventListener("toggled", (event) => {
     console.log(event.detail.open);
@@ -163,7 +168,9 @@ Components render into Shadow DOM. Use `<slot>` in the component for content
 provided by the host. Expose style hooks with `part`:
 
 ```elm
-button [ Attributes.attribute "part" "trigger" ] [ text "Toggle" ]
+button
+    [ Attributes.attribute "part" "trigger" ]
+    [ text "Toggle" ]
 ```
 
 ```css
@@ -172,5 +179,6 @@ ui-disclosure::part(trigger) {
 }
 ```
 
-See the [example app](examples/components/) for multiple components hosted by
-Elm and used from HTML.
+See the
+[example app](https://github.com/n1kben/elm-web-components/tree/main/examples/components)
+for multiple components hosted by Elm and used from HTML.
