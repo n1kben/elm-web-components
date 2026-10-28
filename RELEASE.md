@@ -1,5 +1,10 @@
 # Releases
 
+## Published 1.0.5
+
+Version 1.0.5 fixes README rendering and links on package.elm-lang.org. Runtime
+behavior is unchanged.
+
 ## Published 1.0.4
 
 Version 1.0.4 adds the required `elm/json` install step and accepts the current

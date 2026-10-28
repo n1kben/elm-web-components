@@ -1,6 +1,6 @@
 {
   "name": "@n1kben/elm-web-components",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Build Elm custom elements and an Elm app in one JavaScript bundle",
   "type": "module",
   "engines": {
