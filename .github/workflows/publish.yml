@@ -1,0 +1,32 @@
+name: Publish npm package
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'n1kben/elm-web-components'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - name: Check tag
+        run: test "$GITHUB_REF_NAME" = "$(node --print 'require(\"./package.json\").version')"
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:example
+      - run: npm run docs:check
+      - run: npm run typecheck
+      - run: npm run build:cli
+      - run: npm run lint
+      - run: npm publish --access public
