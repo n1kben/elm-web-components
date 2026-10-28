@@ -1,21 +1,10 @@
 module Component exposing (Component, Event, define, program)
 
-{-| Build custom elements with Elm.
+{-| Build custom elements with Elm. A component's `Input` record defines its
+attributes, and its `Output` type defines its events.
 
-The host sets attributes and listens for events. Each component keeps its
-interaction state and renders its own view. When an attribute changes,
-`receive` can send a message to `update`, which can send an event back to
-the host.
-
-The build tool reads the component's `Input` and `Output` types. It generates
-attribute handling, events, and the browser connection. See the disclosure
-example for a complete component.
-
-# Define a component
-@docs Component, define, Event
-
-# Browser integration
-@docs program
+# Components
+@docs Component, define
 
 -}
 
@@ -27,7 +16,7 @@ import Platform.Cmd as Cmd exposing (Cmd)
 import Platform.Sub as Sub exposing (Sub)
 
 
-{-| A component's private state, view, and events. Create one with `define`.
+{-| A custom element definition. Create one with `define`.
 -}
 type Component input state msg output
     = Component
@@ -39,17 +28,12 @@ type Component input state msg output
         }
 
 
-{-| Define a component. `init` receives the initial input. When an attribute
-changes, `receive` gets the new input. Return `Nothing` to ignore the change,
-or `Just msg` to handle it through `update`. Keep any input that `view` needs in
-the component's state.
+{-| Define a component. `init` receives the initial input. `receive` gets the
+complete input after an attribute changes; return `Nothing` to ignore the
+change. Keep any input needed by `view` in the component's state.
 
-The build tool reads the component module's `Input` record alias and `Output`
-union. It generates the attribute and event handling; you do not write a
-decoder or encoder.
-
-`update` returns the next state, a command for component messages, and a list
-of events for the host. Return `[]` when there are no events.
+The list returned by `update` contains events for the host. Return `[]` when
+there are none.
 
     component =
         Component.define
@@ -73,8 +57,8 @@ define =
     Component
 
 
-{-| An event sent to the host. `name` becomes the DOM event type. `detail`
-becomes `CustomEvent.detail`. The event bubbles across the shadow boundary.
+{-| Used by generated code to send an event to the host. Component authors
+emit their `Output` values instead.
 -}
 type alias Event =
     { name : String

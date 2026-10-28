@@ -1,5 +1,11 @@
 # Releases
 
+## Published 1.0.3
+
+Version 1.0.3 rewrites the README and Elm package documentation around the
+public API. Runtime behavior is unchanged. The Elm package and npm CLI come
+from Git tag `1.0.3`.
+
 ## Published 1.0.2
 
 The Elm package `n1kben/elm-web-components` came from Git tag `1.0.2`. The npm CLI `@n1kben/elm-web-components` came later from commit `f45ea94`, which includes build tool fixes. The exposed `Component` module and `elm.json` did not change between those commits.

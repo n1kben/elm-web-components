@@ -1,27 +1,38 @@
 # Elm web components
 
-Write custom elements in Elm and use them from HTML or another Elm app. The host sets attributes and listens for events; each component keeps its own interaction state. Build the app and its components together to get one JavaScript file with one Elm runtime.
+Write custom elements in Elm and use them from HTML or another Elm app, without
+ports, decoders, or JavaScript glue.
 
-The Elm package `n1kben/elm-web-components` provides `Component.define`. The Node 22 CLI `@n1kben/elm-web-components` reads component files and runs `elm make`. Its Elm generator writes codecs, custom element adapters, and a typed host API.
+## Install
+
+This package requires Node 22 or newer and Elm 0.19.
+
+```sh
+elm install n1kben/elm-web-components
+npm install --save-dev elm @n1kben/elm-web-components
+```
 
 ## Define a component
 
-Put each component in a namespaced Elm module. The module name determines its HTML tag: `Ui.DatePicker` becomes `<ui-date-picker>`.
+Each component is a namespaced Elm module with an `Input` record, an `Output`
+custom type, and a `component` value:
 
 ```elm
-module Ui.DatePicker exposing (Input, Output(..), component)
+module Ui.Disclosure exposing (Input, Output(..), component)
 
 import Component exposing (Component)
-import Html exposing (Html)
 import Platform.Sub as Sub
 
+
 type alias Input =
-    { startMonth : String
-    , value : Maybe String
+    { label : String
+    , disabled : Bool
     }
 
+
 type Output
-    = DateRequested { value : String }
+    = Toggled { open : Bool }
+
 
 component : Component Input State Msg Output
 component =
@@ -34,24 +45,27 @@ component =
         }
 ```
 
-`init` receives the initial attributes. When an attribute changes, `receive` gets the new input and can send a message to `update`. `update` returns the next private state, a `Cmd Msg`, and a list of events for the host. Use `Cmd.none` and `[]` when there is nothing to send. `view` renders the private state.
+`init` receives the initial `Input`. `receive` gets the complete `Input` after an
+attribute changes; return `Nothing` to ignore the change. Values in the
+`List Output` returned by `update` become events.
 
-The [date picker example](examples/components/src/Ui/DatePicker.elm) uses `startMonth` to choose its initial visible month. Later changes to `value` change the selected date without moving that month. A day click sends `date-requested`; the host decides whether to set `value`.
+The example above creates this browser API:
 
-`Input` must be a record alias, and each `Output` constructor must take a record. Boundary fields can use `String`, `Bool`, `Int`, `Float`, `Maybe`, `List`, `Result`, tuples, records, and public aliases or unions from project modules or installed Elm packages. Recursive and generic types work when the boundary supplies concrete type arguments, such as `Tree String`. Functions, extensible records, and opaque types cannot cross the boundary. The build reports them as errors.
+| Elm | Browser |
+| --- | --- |
+| `Ui.Disclosure` | `<ui-disclosure>` |
+| `label : String` | `label="Details"` |
+| `disabled : Bool` | presence or absence of `disabled` |
+| `Toggled { open : Bool }` | a `toggled` event with `{ open }` in `event.detail` |
 
-Field names become kebab-case HTML attributes. A plain `String` stays a string, and a `Bool` is true when its attribute is present. A missing `Maybe` attribute becomes `Nothing`. Other values are JSON encoded in attributes. The generated Elm host uses the codecs; an HTML caller writes the JSON itself. `Maybe` values inside JSON use `{ "type": "nothing", "args": [] }` or `{ "type": "just", "args": [value] }`, preserving the difference between `Nothing` and `Just ()` even in nested values. Unions use the same `type` and `args` shape, for example `{ "type": "leaf", "args": ["hello"] }`. Each `Output` constructor becomes a kebab-case `CustomEvent`; its record fields become keys in `event.detail`. The event bubbles across the shadow boundary.
+Names become kebab-case at the browser boundary, so `startMonth` becomes
+`start-month`.
 
-## Build one application and its components
+See the complete [disclosure component](examples/components/src/Ui/Disclosure.elm).
 
-Install the Elm package and npm CLI in an Elm application project:
+## Build
 
-```sh
-elm install n1kben/elm-web-components
-npm install --save-dev elm @n1kben/elm-web-components
-```
-
-Run the CLI from the directory containing `elm.json`:
+Run the CLI from the directory containing your application's `elm.json`:
 
 ```sh
 npx elm-web-components build \
@@ -60,62 +74,102 @@ npx elm-web-components build \
   src/Ui/Disclosure.elm src/Ui/DatePicker.elm
 ```
 
-Leave out `--app` if you only need the components. Add `--optimize` for an optimized Elm build. The CLI gives every listed component and the optional app to one `elm make` call. List component files in the command or an npm script; there is no separate manifest or handwritten decoder.
+Pass each component file to `build`. `--app` is optional; omit it when the output
+only needs to define custom elements. The default output is
+`dist/components.js`. Add `--optimize` for an optimized build.
 
-The build writes compiler files to `.elm-web-components/`. It writes Elm host and codec modules under the first source directory listed in `elm.json`, at `WebComponents/<component module>.elm` and `WebComponents/Codecs/`. Add both generated paths to `.gitignore`. Your editor can see the host modules after the first build. Later builds remove old generated modules and recreate only those for the listed components. The CLI refuses to overwrite handwritten host or codec modules.
+The app and components are built into one browser-ready JavaScript file with one
+Elm runtime. No bundler is required.
 
-## Use the generated Elm API
+For a project whose first source directory is `src`, add these generated paths
+to `.gitignore`:
 
-For `Ui.DatePicker`, the build generates `WebComponents.Ui.DatePicker.view` with a fixed props record:
-
-```elm
-import WebComponents.Ui.DatePicker as DatePicker
-
-DatePicker.view
-    { startMonth = "2026-09"
-    , value = Just model.selected
-    , onDateRequested = Just (DateRequested << .value)
-    }
-    []
+```gitignore
+.elm-web-components/
+src/WebComponents/
 ```
 
-The generated `view` writes the attributes and handles the component's events. Use `Nothing` to leave out an optional attribute or event callback. Elm checks that the record has every required field. The full [host example](examples/components/src/Host.elm) uses this API.
+## Use a component from Elm
 
-You can use the same component in plain HTML:
+After the first build, use `Ui.Disclosure` through
+`WebComponents.Ui.Disclosure`:
+
+```elm
+import Html exposing (Html, text)
+import WebComponents.Ui.Disclosure as Disclosure
+
+
+type Msg
+    = DisclosureToggled Bool
+
+
+view : Html Msg
+view =
+    Disclosure.view
+        { label = "Details"
+        , disabled = False
+        , onToggled = Just (DisclosureToggled << .open)
+        }
+        [ text "Content supplied by the host" ]
+```
+
+Each output has an optional callback. Use `Nothing` to ignore it.
+
+## Use a component from HTML
 
 ```html
-<script src="dist/app.js" defer></script>
-<ui-date-picker start-month="2026-09" value="2026-09-23"></ui-date-picker>
+<script src="dist/components.js" defer></script>
+
+<ui-disclosure label="Details">
+  Content supplied by the host
+</ui-disclosure>
+
 <script>
-  document.querySelector("ui-date-picker").addEventListener("date-requested", (event) => {
-    event.currentTarget.setAttribute("value", event.detail.value);
+  const disclosure = document.querySelector("ui-disclosure");
+
+  disclosure.addEventListener("toggled", (event) => {
+    console.log(event.detail.open);
   });
 </script>
 ```
 
-Components render in Shadow DOM. Expose parts for CSS with `::part(...)`, and use `<slot>` for content supplied by the host.
+Events bubble and cross the shadow boundary.
 
-An element keeps its private state when it leaves the page and returns; its subscriptions pause while it is detached. Invalid initial attributes show an error in the shadow root. Changing them can let the component initialize later. The date picker demonstrates the boundary between host state and component state. It is not a complete accessible date picker.
+## Inputs and outputs
 
-## Try the example
+`Input` must be a record alias. Each `Output` variant must contain one record,
+such as `Toggled { open : Bool }`.
 
-```sh
-npm ci
-npm run build:example
-npm test
-npm run docs:check
-npm run typecheck
-npm run build:cli
-npm run lint
-npm pack --dry-run
+`Input` and `Output` fields may use `String`, `Bool`, `Int`, `Float`, `Maybe`,
+`List`, `Result`, tuples, records, and public aliases or custom types from the
+project or its Elm dependencies. Recursive and generic types are supported when
+the boundary provides concrete type arguments. Functions, extensible records,
+and opaque types cannot cross the boundary.
+
+In HTML, strings use plain attribute values, booleans use attribute presence,
+and a top-level `Maybe` uses attribute presence or absence. Other values use
+JSON. Custom types use a `type` and `args` shape:
+
+```json
+{ "type": "leaf", "args": ["hello"] }
 ```
 
-Serve the repository over HTTP, then open `examples/components/index.html`. [RELEASE.md](RELEASE.md) lists the publication steps.
+Output record fields are available on `event.detail`.
 
-The CLI needs Node 22 and the Elm compiler; it does not need a bundler. The CLI and TypeScript Elm AST package use Effect for build steps, typed errors, and cleanup. Effect runs only during builds. JavaScript property reflection, form association, overlay and focus helpers, and prebuilt unstyled controls are outside this version.
+## Slots and styling
 
-## How generation works
+Components render into Shadow DOM. Use `<slot>` in the component for content
+provided by the host. Expose style hooks with `part`:
 
-The CLI gives the Elm generator project source modules and installed package docs. The generator uses [elm-syntax](https://github.com/stil4m/elm-syntax) for source ASTs and [elm/project-metadata-utils](https://github.com/elm/project-metadata-utils) for package type metadata. It follows imports to resolve aliases and unions, then generates Elm source and the small JavaScript custom element adapter. `elm make` checks the generated code. The parser and generator run at build time; they add nothing to the browser output. The npm package ships compiled CLI and generator JavaScript because Node 22 does not strip TypeScript in `node_modules`.
+```elm
+button [ Attributes.attribute "part" "trigger" ] [ text "Toggle" ]
+```
 
-The CLI still uses the Elm generator. The separate [Elm AST for TypeScript](https://github.com/n1kben/elm-ast) package resolves project and package types and prints generated Elm declarations, but the CLI does not use it yet.
+```css
+ui-disclosure::part(trigger) {
+  font: inherit;
+}
+```
+
+See the [example app](examples/components/) for multiple components hosted by
+Elm and used from HTML.
