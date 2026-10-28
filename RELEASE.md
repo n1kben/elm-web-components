@@ -1,5 +1,10 @@
 # Releases
 
+## Published 1.0.4
+
+Version 1.0.4 adds the required `elm/json` install step and accepts the current
+Elm npm package. Runtime behavior is unchanged.
+
 ## Published 1.0.3
 
 Version 1.0.3 rewrites the README and Elm package documentation around the

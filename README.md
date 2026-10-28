@@ -9,6 +9,7 @@ This package requires Node 22 or newer and Elm 0.19.
 
 ```sh
 elm install n1kben/elm-web-components
+elm install elm/json
 npm install --save-dev elm @n1kben/elm-web-components
 ```
 
