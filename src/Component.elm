@@ -6,6 +6,10 @@ attributes, and its `Output` type defines its events.
 # Components
 @docs Component, define
 
+# Generated bridge
+The build tool uses these. Component authors do not call them directly.
+@docs Event, program
+
 -}
 
 import Browser

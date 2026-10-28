@@ -21,7 +21,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
       - name: Check tag
-        run: test "$GITHUB_REF_NAME" = "$(node --print 'require(\"./package.json\").version')"
+        run: test "$GITHUB_REF_NAME" = "$(node --print 'require("./package.json").version')"
       - run: npm ci
       - run: npm test
       - run: npm run build:example
