@@ -24,15 +24,15 @@
   ],
   "scripts": {
     "build:example": "node examples/components/build.ts",
-    "test": "npm run build:generator && node --test test/build.test.ts && node --test test/compiled.test.ts && npm run test:ast",
+    "test": "node --run build:generator && node --test test/build.test.ts && node --test test/compiled.test.ts && node --run test:ast",
     "test:ast": "node --test packages/elm-ast/test/*.test.ts",
     "docs:check": "elm make src/Component.elm --docs=docs.json",
-    "test:compiled": "npm run build:generator && node --test test/compiled.test.ts",
+    "test:compiled": "node --run build:generator && node --test test/compiled.test.ts",
     "lint": "oxlint .",
     "typecheck": "tsc --noEmit",
     "build:generator": "cd generator && ../node_modules/.bin/elm make src/Generator.elm --output=../dist-node/generator.js",
-    "build:cli": "tsc --project tsconfig.build.json && npm run build:generator",
-    "prepack": "npm run build:cli"
+    "build:cli": "tsc --project tsconfig.build.json && node --run build:generator",
+    "prepack": "node --run build:cli"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.85.0",

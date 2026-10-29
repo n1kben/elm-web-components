@@ -1,5 +1,5 @@
 {
-  "name": "@n1kben/elm-ast",
+  "name": "elm-web-components-internal-elm-ast",
   "version": "0.0.0",
   "private": true,
   "description": "Parse Elm modules and generate Elm source from typed ASTs",

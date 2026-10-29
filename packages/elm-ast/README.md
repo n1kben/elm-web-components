@@ -1,11 +1,13 @@
-# Elm AST for TypeScript
+# Internal Elm AST for TypeScript
 
 This 0.1.0 preview parses Elm module headers, imports, type aliases, unions, and type annotations into TypeScript values. It follows imports across project modules and installed package docs, including recursive types. It can also print Elm declarations from a typed expression tree and add the imports those declarations use.
 
-Install it with `npm install @n1kben/elm-ast effect`.
+This is private source inside the Elm web components repository. It is not an
+npm package and must not be installed separately. The root build compiles the
+source into the published `@n1kben/elm-web-components` CLI.
 
 ```ts
-import { openProject } from "@n1kben/elm-ast/project";
+import { openProject } from "./src/project.ts";
 import { Effect } from "effect";
 
 const project = Effect.runSync(openProject("."));
@@ -15,8 +17,15 @@ const input = component.declarations.find((item) => item.kind === "alias" && ite
 
 `openProject` reads `elm.json`, indexes the source directories, and loads installed package docs from `ELM_HOME` when the Effect runs. File and parse failures return `ProjectError`. Missing or ambiguous declarations return `ProjectLookupError` from `module` and `resolveType`. `collectTypeGraph` follows the declarations needed by concrete boundary types and returns `TypeGraphError` for unsupported types.
 
-For generated source, use `createModule`, `ref`, and `printModule` from `@n1kben/elm-ast/emit`. The printer adds imports referenced by expressions and types. `typeModuleFromParsed` copies parsed type declarations for inspection or rewriting; it does not copy functions or comments. Parsed function bodies remain source text. Generated function bodies use the expression AST, which covers the constructs needed by the current codec generator rather than all Elm expressions. Check generated output with the Elm compiler.
+For generated source, use `createModule`, `ref`, and `printModule` from
+`src/emit.ts`. The printer adds imports referenced by expressions and types.
+`typeModuleFromParsed` copies parsed type declarations for inspection or
+rewriting; it does not copy functions or comments. Parsed function bodies
+remain source text. Generated function bodies use the expression AST, which
+covers the constructs needed by the current codec generator rather than all
+Elm expressions. Check generated output with the Elm compiler.
 
-[Elm web components](https://github.com/n1kben/elm-web-components) is testing these APIs for a future TypeScript generator. Its CLI still uses an Elm generator.
+[Elm web components](../../README.md) is testing these APIs for a future
+TypeScript generator. Its CLI still uses an Elm generator.
 
 This repository also has an experimental codec generator in `tool/type-codec.ts`. It handles recursive unions and package records. Runtime tests round-trip recursive trees and records containing lists, tuples, unit, `Maybe`, and `Result`. It does not create component host modules or adapters yet.
