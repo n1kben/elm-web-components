@@ -1,5 +1,11 @@
 # Releases
 
+## Published 1.0.6
+
+Version 1.0.6 documents the bundled Elm AST as private source and makes the
+npm build and test scripts independent of the invoking package manager.
+Runtime behavior is unchanged.
+
 ## Published 1.0.5
 
 Version 1.0.5 fixes README rendering and links on package.elm-lang.org. Runtime
